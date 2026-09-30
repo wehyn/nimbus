@@ -163,6 +163,7 @@ h1, h2, h3, p { margin: 0; }
 .system-card-meta-item svg { flex: none; }
 .system-card-meta-upload svg { color: var(--orange); }
 .system-card-meta-download svg { color: var(--blue); }
+.system-card-meta-temperature { border-left: 1px solid var(--line); padding-left: 5px; }
 .system-card-meta-temperature svg { color: var(--orange); }
 .system-card-meta-power svg { color: var(--muted-2); }
 .system-card-meta strong { color: var(--text); font: 500 11px var(--font-dm-mono), monospace; font-variant-numeric: tabular-nums; }
