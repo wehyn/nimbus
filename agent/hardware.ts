@@ -1,10 +1,14 @@
 import { readFile, readlink, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { NetworkRateSampler, type NetworkRateSnapshot } from "./network-metrics.ts";
+import { collectMountedStorageVolumes, type StorageVolumeSnapshot } from "./storage-volumes.ts";
 
 export type HardwareSnapshot = {
   temperatureC: number | null;
   powerWatts: number | null;
   powerSource: "intel-rapl" | null;
+  networkRates?: NetworkRateSnapshot | null;
+  storageVolumes?: StorageVolumeSnapshot[];
   updatedAt: string;
 };
 
@@ -16,15 +20,24 @@ const CPU_THERMAL_TYPES = ["x86_pkg_temp", "cpu", "CPU", "soc"];
 
 export class HardwareSampler {
   private readonly sysRoot: string;
+  private readonly storageRoot: string;
+  private readonly networkSampler: NetworkRateSampler;
   private readonly now: HardwareClock;
   private previousEnergySample: EnergySample | undefined;
   private snapshot: HardwareSnapshot | undefined;
   private sampledAt = 0;
   private pendingRefresh: Promise<HardwareSnapshot> | undefined;
 
-  constructor(sysRoot = process.env.SYS_ROOT || "/host/sys", now: HardwareClock = Date.now) {
+  constructor(
+    sysRoot = process.env.SYS_ROOT || "/host/sys",
+    now: HardwareClock = Date.now,
+    procRoot = process.env.PROC_ROOT || "/host/proc",
+    storageRoot = process.env.STORAGE_ROOT || "/host/storage",
+  ) {
     this.sysRoot = sysRoot;
+    this.storageRoot = storageRoot;
     this.now = now;
+    this.networkSampler = new NetworkRateSampler(procRoot, now);
   }
 
   async getSnapshot(): Promise<HardwareSnapshot> {
@@ -43,9 +56,11 @@ export class HardwareSampler {
 
   private async readSnapshot(): Promise<HardwareSnapshot> {
     const timestampMs = this.now();
-    const [temperatureC, energyMicrojoules] = await Promise.all([
+    const [temperatureC, energyMicrojoules, networkRates, storageVolumes] = await Promise.all([
       readCpuTemperature(this.sysRoot),
       readIntelPackageEnergy(this.sysRoot),
+      this.networkSampler.sample(),
+      collectMountedStorageVolumes(this.storageRoot),
     ]);
 
     const power = calculatePower(energyMicrojoules, this.previousEnergySample, timestampMs);
@@ -57,6 +72,8 @@ export class HardwareSampler {
       temperatureC,
       powerWatts: power,
       powerSource: energyMicrojoules === null ? null : "intel-rapl",
+      networkRates,
+      storageVolumes,
       updatedAt: new Date(timestampMs).toISOString(),
     };
     this.sampledAt = timestampMs;

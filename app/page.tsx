@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Cpu, Database, HardDrive, RefreshCw, Settings2, Thermometer, TriangleAlert, Zap } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Cpu, Database, HardDrive, RefreshCw, Settings2, Thermometer, TriangleAlert, Zap } from "lucide-react";
 import type { ActivityEvent, AppStatus, ManagedApp, ServerOverview } from "@/lib/types";
 import SystemDetailsModal, { type SystemDetailKind } from "@/app/system-details-modal";
 import { AddApplicationTile, LauncherTile, SystemMetric } from "@/app/launcher/launcher-components";
 import { SettingsPanel } from "@/app/launcher/settings-panel";
-import { blankApp, formatPercent, formatPower, formatTemperature } from "@/app/launcher/utils";
+import { blankApp, formatNetworkRate, formatPercent, formatPower, formatTemperature } from "@/app/launcher/utils";
 import { fetchHealthStatus } from "@/lib/health-client";
 import { mapWithConcurrency } from "@/lib/async-work";
 import { applyHealthResults, hasHealthStatusTransition } from "@/lib/health-results";
@@ -361,6 +361,8 @@ export default function Home() {
   const cpuValue = overview ? formatPercent(overview.cpu) : "—";
   const memoryValue = overview ? formatPercent(overview.memory) : "—";
   const storageValue = overview ? formatPercent(overview.storage) : "—";
+  const downloadValue = overview ? formatNetworkRate(overview.downloadBytesPerSecond) : "—";
+  const uploadValue = overview ? formatNetworkRate(overview.uploadBytesPerSecond) : "—";
   const temperatureValue = overview ? formatTemperature(overview.temperatureC) : "—";
   const powerValue = overview ? formatPower(overview.powerWatts) : "—";
 
@@ -385,9 +387,12 @@ export default function Home() {
             <SystemMetric icon={<Cpu size={24} />} label="CPU" value={cpuValue} progress={overview?.cpu} tone="green" variant="ring" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
             <SystemMetric icon={<Database size={24} />} label="Memory" value={memoryValue} progress={overview?.memory} tone="blue" variant="ring" onOpen={() => openSystemDetails("memory")} loading={overviewRefreshing} />
           </div>
-          <SystemMetric icon={<HardDrive size={24} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" variant="bar" loading={overviewRefreshing} />
-          <div className="system-card-meta">
-            <span><Thermometer size={21} aria-hidden="true" /><strong>{temperatureValue}</strong><span className="system-card-meta-separator">·</span><Zap size={15} aria-hidden="true" /><strong>{powerValue}</strong></span>
+          <SystemMetric icon={<HardDrive size={24} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" variant="bar" onOpen={() => openSystemDetails("storage")} loading={overviewRefreshing} />
+          <div className="system-card-meta" role="group" aria-label="System readings">
+            <span className="system-card-meta-item system-card-meta-upload" role="img" aria-label={`Upload rate: ${uploadValue}`}><ArrowUp size={15} aria-hidden="true" /><strong>{uploadValue}</strong></span>
+            <span className="system-card-meta-item system-card-meta-download" role="img" aria-label={`Download rate: ${downloadValue}`}><ArrowDown size={15} aria-hidden="true" /><strong>{downloadValue}</strong></span>
+            <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={16} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
+            <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={14} aria-hidden="true" /><strong>{powerValue}</strong></span>
           </div>
         </div>
       </section>
@@ -396,7 +401,7 @@ export default function Home() {
       </section>
     </section>
     <AnimatePresence initial={false}>{settingsOpen && <motion.div key="application-modal" className="panel-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition} onClick={closeSettings}><SettingsPanel apps={apps} activities={activities} editing={editing} deletingId={deletingId} saving={saving} mutationError={mutationError} onRefreshActivity={() => void refreshActivities()} onClose={closeSettings} onEdit={setEditing} onSave={saveApp} onDelete={deleteApp} /></motion.div>}</AnimatePresence>
-    <AnimatePresence initial={false}>{systemDetails && <SystemDetailsModal key={systemDetails} kind={systemDetails} onClose={closeSystemDetails} />}</AnimatePresence>
+    <AnimatePresence initial={false}>{systemDetails && <SystemDetailsModal key={systemDetails} kind={systemDetails} overview={overview} overviewError={overviewError} onRefreshOverview={refreshOverview} onClose={closeSystemDetails} />}</AnimatePresence>
     {healthError && <div className="toast toast-error" role="status" aria-live="polite"><TriangleAlert size={16} aria-hidden="true" />{healthError}</div>}
     {isOnline === false && <OfflineBanner onRetry={() => { void loadApps(); void refreshOverview(); void refreshHealth(); }} />}
     {savedNotice && <div className="toast" role="status"><Check size={16} aria-hidden="true" />Changes saved</div>}

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpDown, Cpu, Database, RefreshCw, TriangleAlert, X } from "lucide-react";
+import { ArrowUpDown, Cpu, Database, HardDrive, RefreshCw, TriangleAlert, X } from "lucide-react";
 import { getNextProcessSortDirection, getProcessSortButtonLabel, getProcessTableCaption } from "@/lib/system-details-accessibility";
-import type { CpuProcess, MemoryProcess, MemorySnapshot, ProcessorSnapshot } from "@/lib/types";
+import type { CpuProcess, MemoryProcess, MemorySnapshot, ProcessorSnapshot, ServerOverview, StorageVolume } from "@/lib/types";
 import MetricsHistoryChart from "@/app/metrics-history-chart";
 import { getFocusableElements } from "@/app/modal-focus.tsx";
 
-export type SystemDetailKind = "processor" | "memory";
+export type SystemDetailKind = "processor" | "memory" | "storage";
 type SortKey = "name" | "command" | "pid" | "user" | "cpuPercent" | "rssBytes" | "memoryPercent";
 
 const processorSortLabels: Partial<Record<SortKey, string>> = {
@@ -32,7 +32,13 @@ const memorySortLabels: Partial<Record<SortKey, string>> = {
 
 const motionTransition = { duration: 0.2, ease: "easeOut" as const };
 
-export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDetailKind; onClose: () => void }) {
+export default function SystemDetailsModal({ kind, onClose, overview = null, overviewError = "", onRefreshOverview }: {
+  kind: SystemDetailKind;
+  onClose: () => void;
+  overview?: ServerOverview | null;
+  overviewError?: string;
+  onRefreshOverview?: () => Promise<void>;
+}) {
   const [snapshot, setSnapshot] = useState<MemorySnapshot | ProcessorSnapshot | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -44,10 +50,28 @@ export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDeta
   const requestVersionRef = useRef(0);
   const restoreFocusTimeoutRef = useRef<number | null>(null);
   const previousBodyOverflowRef = useRef("");
-  const title = kind === "processor" ? "Processor" : "Memory";
+  const title = kind === "processor" ? "Processor" : kind === "memory" ? "Memory" : "Storage";
+  const isStorage = kind === "storage";
+  const visibleError = isStorage ? overviewError || error : error;
+  const hasData = isStorage ? overview !== null : snapshot !== null;
+  const updatedAt = isStorage ? overview?.updatedAt : snapshot?.updatedAt;
+  const isBusy = isStorage ? overview === null && !visibleError : snapshot === null && !error;
   const sortLabels = kind === "processor" ? processorSortLabels : memorySortLabels;
 
   const refresh = useCallback(async () => {
+    if (kind === "storage") {
+      setRefreshing(true);
+      try {
+        await onRefreshOverview?.();
+        setError("");
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unable to refresh storage details.");
+      } finally {
+        setRefreshing(false);
+      }
+      return;
+    }
+
     requestRef.current?.abort();
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
@@ -71,19 +95,19 @@ export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDeta
     } finally {
       if (requestVersion === requestVersionRef.current) setRefreshing(false);
     }
-  }, [kind, title]);
+  }, [kind, title, onRefreshOverview]);
 
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     previousActiveElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 5_000);
+    const interval = kind === "storage" ? null : window.setInterval(() => void refresh(), 5_000);
     previousBodyOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
     return () => {
-      window.clearInterval(interval);
+      if (interval !== null) window.clearInterval(interval);
       requestRef.current?.abort();
       requestVersionRef.current += 1;
       requestRef.current = null;
@@ -100,7 +124,7 @@ export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDeta
         previousTrigger?.isConnected && previousTrigger.focus();
       }, 220);
     };
-  }, [refresh]);
+  }, [refresh, kind]);
 
   useEffect(() => () => {
     if (restoreFocusTimeoutRef.current !== null) window.clearTimeout(restoreFocusTimeoutRef.current);
@@ -158,23 +182,24 @@ export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDeta
   const memorySnapshot = kind === "memory" && snapshot ? snapshot as MemorySnapshot : null;
 
   return <motion.div className="panel-backdrop system-details-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition} onClick={onClose}>
-    <section ref={panelRef} className="settings-panel system-details-modal" role="dialog" aria-modal="true" aria-labelledby="system-details-title" aria-busy={!snapshot && !error} onClick={(event) => event.stopPropagation()}>
+    <section ref={panelRef} className={`settings-panel system-details-modal${isStorage ? " storage-details-modal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="system-details-title" aria-busy={isBusy} onClick={(event) => event.stopPropagation()}>
       <div className="panel-header system-details-header">
         <div>
           <p className="eyebrow">System detail</p>
           <h2 id="system-details-title">{title}</h2>
-          <p className="system-details-description">Host processes using {kind === "processor" ? "CPU" : "RAM"} on this device.</p>
+          <p className="system-details-description">{isStorage ? "Used space for Nimbus and mounted disks." : `Host processes using ${kind === "processor" ? "CPU" : "RAM"} on this device.`}</p>
         </div>
         <div className="system-details-actions">
           <span className="system-details-status" role="status" aria-live="polite">
-            {error ? <TriangleAlert size={13} aria-hidden="true" /> : snapshot ? <span className="sync-dot" aria-hidden="true" /> : <RefreshCw size={13} className="spin" aria-hidden="true" />}
-            {error ? "Unavailable" : snapshot ? `Updated ${formatTime(snapshot.updatedAt)}` : "Loading…"}
+            {visibleError ? <TriangleAlert size={13} aria-hidden="true" /> : hasData ? <span className="sync-dot" aria-hidden="true" /> : <RefreshCw size={13} className="spin" aria-hidden="true" />}
+            {visibleError ? "Unavailable" : hasData && updatedAt ? `Updated ${formatTime(updatedAt)}` : "Loading…"}
           </span>
-          <button type="button" className="icon-button system-details-refresh" onClick={() => void refresh()} title={error ? `Retry ${title.toLowerCase()} details` : `Refresh ${title.toLowerCase()} details`} aria-label={error ? `Retry ${title.toLowerCase()} details` : `Refresh ${title.toLowerCase()} details`}><RefreshCw size={16} className={refreshing ? "spin" : ""} /></button>
+          <button type="button" className="icon-button system-details-refresh" onClick={() => void refresh()} title={visibleError ? `Retry ${title.toLowerCase()} details` : `Refresh ${title.toLowerCase()} details`} aria-label={visibleError ? `Retry ${title.toLowerCase()} details` : `Refresh ${title.toLowerCase()} details`}><RefreshCw size={16} className={refreshing ? "spin" : ""} /></button>
           <button type="button" ref={closeButtonRef} className="close-button" onClick={onClose} aria-label={`Close ${title.toLowerCase()} details`}><X size={18} aria-hidden="true" /></button>
         </div>
       </div>
 
+      {isStorage ? <StorageDetails overview={overview} error={visibleError} refreshing={refreshing} onRefresh={() => void refresh()} /> : <>
       {processorSnapshot && <section className="memory-summary system-details-summary">
         <SystemSummary label="CPU usage" value={formatPercent(processorSnapshot.cpuPercent)} detail={`${processorSnapshot.cpuCores} logical cores`} tone="green" icon={<Cpu size={16} />} />
         <SystemSummary label="Load average" value={processorSnapshot.loadAverage.one.toFixed(2)} detail={`5m ${processorSnapshot.loadAverage.five.toFixed(2)} · 15m ${processorSnapshot.loadAverage.fifteen.toFixed(2)}`} tone="purple" icon={<Cpu size={16} />} />
@@ -188,16 +213,77 @@ export default function SystemDetailsModal({ kind, onClose }: { kind: SystemDeta
 
       {processorSnapshot?.sampling && <SystemNotice tone="info" icon={<RefreshCw size={16} className="spin" />} title="Sampling CPU usage">The first reading establishes a baseline; the next refresh will be more representative.</SystemNotice>}
       {(processorSnapshot?.partial || memorySnapshot?.partial) && <SystemNotice tone="warning" icon={<TriangleAlert size={16} />} title="Some process details are incomplete">{(processorSnapshot || memorySnapshot)?.warnings.join(" ")}</SystemNotice>}
-      {error && <div className="memory-error system-details-error" role="alert"><TriangleAlert size={17} aria-hidden="true" /><div><strong>{title} details unavailable</strong><p>{error}</p><button type="button" className="small-primary" onClick={() => void refresh()}>Try again</button></div></div>}
+      {visibleError && <div className="memory-error system-details-error" role="alert"><TriangleAlert size={17} aria-hidden="true" /><div><strong>{title} details unavailable</strong><p>{visibleError}</p><button type="button" className="small-primary" onClick={() => void refresh()}>Try again</button></div></div>}
       <MetricsHistoryChart metric={kind === "processor" ? "cpu" : "memory"} />
 
       <section className="process-card system-details-process-card">
         <div className="card-heading"><div><div className="section-title-row"><h3>Processes</h3>{snapshot && <span className="count-pill">{snapshot.returnedCount} / {snapshot.totalCount}</span>}</div><p>{kind === "processor" ? "CPU percentage is each process’s share of total system CPU." : "Resident set size is the physical RAM currently held by each process."}</p></div>{kind === "processor" ? <Cpu size={18} className="process-heading-icon" /> : <Database size={18} className="process-heading-icon" />}</div>
         {!snapshot && !error ? <div className="process-state" role="status" aria-live="polite"><RefreshCw size={20} className="spin" aria-hidden="true" /><span>Reading host processes…</span></div> : error && !snapshot ? <div className="process-state"><TriangleAlert size={20} aria-hidden="true" /><span>Metrics agent unavailable. Use Try again to retry.</span></div> : processes.length ? <ProcessTable kind={kind} title={title} processes={processes} sortKey={sortKey} descending={descending} sortLabels={sortLabels} changeSort={changeSort} /> : <div className="process-state"><Database size={20} aria-hidden="true" /><span>No readable processes were returned.</span></div>}
       </section>
+      </>}
       <div className="system-details-footer"><span><span className="sync-dot" />Live · refreshes every 5 sec</span><span>Connected locally</span></div>
     </section>
   </motion.div>;
+}
+
+function StorageDetails({ overview, error, refreshing, onRefresh }: {
+  overview: ServerOverview | null;
+  error: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const [selectedVolumeId, setSelectedVolumeId] = useState("nimbus");
+  const volumes = overview?.storageVolumes ?? [];
+  const selectedVolume = volumes.find((volume) => volume.id === selectedVolumeId) ?? null;
+  const storageStats = getStorageVolumeStats(selectedVolume);
+  const selectedVolumeMissing = !selectedVolume;
+  const usedPercent = storageStats && storageStats.totalBytes > 0
+    ? Number(((storageStats.usedBytes / storageStats.totalBytes) * 100).toFixed(1))
+    : 0;
+
+  return <section className="storage-details-content">
+    <div className="storage-volume-picker">
+      <label htmlFor="storage-volume-select">Storage volume</label>
+      <select id="storage-volume-select" value={selectedVolumeId} onChange={(event) => setSelectedVolumeId(event.target.value)}>
+        {volumes.map((volume) => <option key={volume.id} value={volume.id}>{volume.label}</option>)}
+        {selectedVolumeMissing && <option value={selectedVolumeId} disabled>{selectedVolumeId === "nimbus" ? "Nimbus unavailable" : "Selected disk unavailable"}</option>}
+      </select>
+    </div>
+
+    {error && <div className="memory-error system-details-error" role="alert"><TriangleAlert size={17} aria-hidden="true" /><div><strong>Storage details may be out of date</strong><p>{error}</p><button type="button" className="small-primary" onClick={onRefresh}>{refreshing ? "Refreshing…" : "Try again"}</button></div></div>}
+    {!overview && !error ? <div className="storage-details-state" role="status"><RefreshCw size={20} className="spin" aria-hidden="true" /><span>Reading mounted storage…</span></div>
+      : storageStats ? <>
+        <section className="memory-summary system-details-summary storage-details-summary">
+          <SystemSummary className="storage-stat-used" label="Used" value={formatStorageBytes(storageStats.usedBytes)} detail={`${usedPercent}% of total`} tone="orange" icon={<HardDrive size={16} />} />
+          <SystemSummary className="storage-stat-available" label="Available" value={formatStorageBytes(storageStats.availableBytes)} detail="Free to use" tone="green" icon={<HardDrive size={16} />} />
+          <SystemSummary className="storage-stat-total" label="Total" value={formatStorageBytes(storageStats.totalBytes)} detail="Filesystem capacity" tone="blue" icon={<HardDrive size={16} />} />
+        </section>
+        <div className="storage-capacity-card">
+          <div className="storage-capacity-heading"><span>Used / total</span><strong>{formatStorageBytes(storageStats.usedBytes)} / {formatStorageBytes(storageStats.totalBytes)}</strong></div>
+          <div className="storage-capacity-track" role="progressbar" aria-label={`${storageStats.label} storage used`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPercent}>
+            <span style={{ width: `${Math.min(100, Math.max(0, usedPercent))}%` }} />
+          </div>
+          {storageStats.reservedBytes > 0 && <p className="storage-reserved-note">{formatStorageBytes(storageStats.reservedBytes)} reserved for system use</p>}
+        </div>
+      </> : overview ? <div className="storage-details-state" role="status"><TriangleAlert size={20} aria-hidden="true" /><span>{selectedVolume ? `${selectedVolume.label} is mounted but its usage could not be read.` : "The selected volume is no longer available. Choose another mounted disk."}</span></div> : null}
+    <p className="storage-details-note">Nimbus uses its database filesystem. Other disks appear here when explicitly mounted read-only for telemetry.</p>
+  </section>;
+}
+
+function getStorageVolumeStats(volume: StorageVolume | null): (StorageVolume & {
+  usedBytes: number;
+  availableBytes: number;
+  reservedBytes: number;
+  totalBytes: number;
+}) | null {
+  if (!volume || volume.usedBytes === null || volume.availableBytes === null || volume.reservedBytes === null || volume.totalBytes === null) return null;
+  return {
+    ...volume,
+    usedBytes: volume.usedBytes,
+    availableBytes: volume.availableBytes,
+    reservedBytes: volume.reservedBytes,
+    totalBytes: volume.totalBytes,
+  };
 }
 
 function ProcessTable({
@@ -229,8 +315,8 @@ function ProcessTable({
   </table></div>;
 }
 
-function SystemSummary({ label, value, detail, tone, icon }: { label: string; value: string; detail: string; tone: string; icon: React.ReactNode }) {
-  return <div className="memory-summary-card"><span className={`stat-icon ${tone}`}>{icon}</span><span className="memory-summary-label">{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+function SystemSummary({ label, value, detail, tone, icon, className = "" }: { label: string; value: string; detail: string; tone: string; icon: React.ReactNode; className?: string }) {
+  return <div className={`memory-summary-card${className ? ` ${className}` : ""}`}><span className={`stat-icon ${tone}`}>{icon}</span><span className="memory-summary-label">{label}</span><strong>{value}</strong><small>{detail}</small></div>;
 }
 
 function SystemNotice({ tone, icon, title, children }: { tone: "info" | "warning"; icon: React.ReactNode; title: string; children: React.ReactNode }) {
@@ -269,6 +355,10 @@ function formatBytes(bytes: number, decimals?: number) {
     ? value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)
     : value.toFixed(decimals);
   return `${formattedValue} ${units[unitIndex]}`;
+}
+
+function formatStorageBytes(bytes: number) {
+  return formatBytes(bytes, bytes < 1024 ? 0 : 1);
 }
 
 function formatPercent(value: number) {

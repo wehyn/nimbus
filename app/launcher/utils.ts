@@ -37,6 +37,18 @@ export function formatPower(value: number | null) {
   return value === null ? "Unavailable" : `${value.toFixed(2)} W`;
 }
 
+export function formatNetworkRate(bytesPerSecond: number | null) {
+  if (bytesPerSecond === null || !Number.isFinite(bytesPerSecond) || bytesPerSecond < 0) return "—";
+  const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
+  let value = bytesPerSecond;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 export function isAppStatus(value: unknown): value is AppStatus {
   return value === "online" || value === "degraded" || value === "offline" || value === "unknown";
 }

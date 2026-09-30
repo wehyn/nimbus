@@ -70,8 +70,19 @@ export type ServerOverview = {
   storageUsed: string;
   storageAvailable: string;
   storageTotal: string;
-  network: string;
+  downloadBytesPerSecond: number | null;
+  uploadBytesPerSecond: number | null;
+  storageVolumes: StorageVolume[];
   updatedAt: string;
+};
+
+export type StorageVolume = {
+  id: string;
+  label: string;
+  usedBytes: number | null;
+  availableBytes: number | null;
+  reservedBytes: number | null;
+  totalBytes: number | null;
 };
 
 export type HistoricalMetric = {

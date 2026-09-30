@@ -28,7 +28,9 @@ const fixtureOverview = {
   storageUsed: "42 GB",
   storageAvailable: "58 GB",
   storageTotal: "100 GB",
-  network: "Local network",
+  downloadBytesPerSecond: null,
+  uploadBytesPerSecond: null,
+  storageVolumes: [{ id: "nimbus", label: "Nimbus", usedBytes: 42_000_000_000, availableBytes: 58_000_000_000, reservedBytes: 0, totalBytes: 100_000_000_000 }],
   updatedAt: "2026-09-02T12:00:00.000Z",
 };
 

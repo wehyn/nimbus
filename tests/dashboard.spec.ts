@@ -42,7 +42,12 @@ const overview = {
   storageUsed: "42 GB",
   storageAvailable: "58 GB",
   storageTotal: "100 GB",
-  network: "Local network",
+  downloadBytesPerSecond: 1_228_800,
+  uploadBytesPerSecond: 512_000,
+  storageVolumes: [
+    { id: "nimbus", label: "Nimbus", usedBytes: 42_000_000_000, availableBytes: 58_000_000_000, reservedBytes: 0, totalBytes: 100_000_000_000 },
+    { id: "disk:media drive", label: "Media drive", usedBytes: 1_200_000_000_000, availableBytes: 800_000_000_000, reservedBytes: 0, totalBytes: 2_000_000_000_000 },
+  ],
   updatedAt: "2026-09-02T12:00:00.000Z",
 };
 
@@ -52,13 +57,13 @@ const historyPoints = [
   { timestamp: "2026-09-02T11:58:00.000Z", cpu: 13.1, memory: 38.2, storage: 42, temperatureC: null, powerWatts: null },
 ];
 
-async function installDashboardFixtures(page: import("@playwright/test").Page, fixtureApps = apps, historyRequests: string[] = []) {
+async function installDashboardFixtures(page: import("@playwright/test").Page, fixtureApps = apps, historyRequests: string[] = [], fixtureOverview: Omit<typeof overview, "temperatureC" | "powerWatts"> & { temperatureC: number | null; powerWatts: number | null } = overview) {
   await page.route("**/api/apps", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { apps: fixtureApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
     return route.fulfill({ json: { app: fixtureApps[0] } });
   });
   await page.route("**/api/activity", (route) => route.fulfill({ json: { activities: [] } }));
-  await page.route("**/api/overview", (route) => route.fulfill({ json: overview }));
+  await page.route("**/api/overview", (route) => route.fulfill({ json: fixtureOverview }));
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 20, statusCode: 200 } }));
   await page.route("**/api/metrics/history**", (route) => {
     const requestUrl = route.request().url();
@@ -101,6 +106,41 @@ async function installDashboardFixtures(page: import("@playwright/test").Page, f
 }
 
 test.describe("dashboard browser regressions", () => {
+  test("shows network rates beside temperature and power and lets me switch storage volumes", async ({ page }) => {
+    const fixtureOverview = { ...overview, temperatureC: 53, powerWatts: 3.28 };
+    await installDashboardFixtures(page, apps, [], fixtureOverview);
+    await page.goto("/");
+
+    await expect(page.getByRole("progressbar", { name: "CPU usage" })).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "Memory usage" })).toBeVisible();
+    const readings = page.getByRole("group", { name: "System readings" });
+    await expect(readings.getByRole("img", { name: "Upload rate: 500 KB/s" })).toBeVisible();
+    await expect(readings.getByRole("img", { name: "Download rate: 1.2 MB/s" })).toBeVisible();
+    await expect(readings.getByRole("img", { name: "Temperature: 53°C" })).toBeVisible();
+    await expect(readings.getByRole("img", { name: "Power: 3.28 W" })).toBeVisible();
+
+    const storageTrigger = page.getByRole("button", { name: "View storage details" });
+    await storageTrigger.click();
+    const dialog = page.getByRole("dialog", { name: "Storage" });
+    await expect(dialog).toBeVisible();
+    const volumeSelect = dialog.getByRole("combobox", { name: "Storage volume" });
+    await expect(volumeSelect.locator("option")).toHaveText(["Nimbus", "Media drive"]);
+    await expect(dialog.locator(".storage-stat-used strong")).toHaveText("39.1 GB");
+    await expect(dialog.locator(".storage-stat-total strong")).toHaveText("93.1 GB");
+
+    await volumeSelect.selectOption("disk:media drive");
+    await expect(dialog.locator(".storage-stat-used strong")).toHaveText("1.1 TB");
+    await expect(dialog.locator(".storage-stat-total strong")).toHaveText("1.8 TB");
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(dialog).toBeVisible();
+      await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).resolves.toBeTruthy();
+    }
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("View storage details");
+  });
+
   test("serves install metadata and network-first service worker without private services", async ({ page, request }) => {
     await installDashboardFixtures(page);
     const manifestResponse = await request.get("/manifest.webmanifest");

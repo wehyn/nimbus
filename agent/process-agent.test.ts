@@ -173,12 +173,14 @@ test("HardwareSampler reads CPU temperature and derives RAPL watts from cached s
   await writeFile(energyPath, "1000000\n");
 
   let now = 10_000;
-  const sampler = new HardwareSampler(root, () => now);
+  const sampler = new HardwareSampler(root, () => now, join(root, "proc"), join(root, "storage"));
   try {
     const first = await sampler.getSnapshot();
     assert.equal(first.temperatureC, 43);
     assert.equal(first.powerWatts, null);
     assert.equal(first.powerSource, "intel-rapl");
+    assert.equal(first.networkRates, null);
+    assert.deepEqual(first.storageVolumes, []);
 
     await writeFile(energyPath, "1500000\n");
     now += 2_000;
