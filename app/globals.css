@@ -158,12 +158,13 @@ h1, h2, h3, p { margin: 0; }
 .system-meter-fill.green { background: var(--accent); }
 .system-meter-fill.blue { background: var(--blue); }
 .system-meter-fill.orange { background: var(--orange); }
-.system-card-meta { min-height: 58px; padding: 0 10px; display: grid; grid-template-columns: repeat(4, max-content); align-items: center; justify-content: center; gap: clamp(6px, 1.25vw, 12px); border-top: 0; }
+.system-card-meta { min-height: 58px; padding: 0 10px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; border-top: 0; }
+.system-card-meta-group { display: flex; align-items: center; justify-content: center; gap: clamp(6px, 1.25vw, 12px); min-width: 0; }
+.system-card-meta-thermal { border-left: 1px solid var(--line); }
 .system-card-meta-item { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .system-card-meta-item svg { flex: none; }
 .system-card-meta-upload svg { color: var(--orange); }
 .system-card-meta-download svg { color: var(--blue); }
-.system-card-meta-temperature { border-left: 1px solid var(--line); padding-left: 5px; }
 .system-card-meta-temperature svg { color: var(--orange); }
 .system-card-meta-power svg { color: var(--muted-2); }
 .system-card-meta strong { color: var(--text); font: 500 11px var(--font-dm-mono), monospace; font-variant-numeric: tabular-nums; }
@@ -412,7 +413,7 @@ h1, h2, h3, p { margin: 0; }
   .system-metric-value { font-size: 16px; }
   .system-ring-value { font-size: 15px; }
   .system-meter { height: 9px; }
-  .system-card-meta { min-height: 54px; padding: 0 6px; gap: 6px; }
+  .system-card-meta { min-height: 54px; padding: 0 6px; }
   .system-card-meta-item { gap: 3px; font-size: 10px; }
   .system-card-meta-item svg { width: 13px; height: 13px; }
   .system-card-meta strong { font-size: 10px; }
