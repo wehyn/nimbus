@@ -389,10 +389,14 @@ export default function Home() {
           </div>
           <SystemMetric icon={<HardDrive size={24} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" variant="bar" onOpen={() => openSystemDetails("storage")} loading={overviewRefreshing} />
           <div className="system-card-meta" role="group" aria-label="System readings">
-            <span className="system-card-meta-item system-card-meta-upload" role="img" aria-label={`Upload rate: ${uploadValue}`}><ArrowUp size={15} aria-hidden="true" /><strong>{uploadValue}</strong></span>
-            <span className="system-card-meta-item system-card-meta-download" role="img" aria-label={`Download rate: ${downloadValue}`}><ArrowDown size={15} aria-hidden="true" /><strong>{downloadValue}</strong></span>
-            <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={16} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
-            <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={14} aria-hidden="true" /><strong>{powerValue}</strong></span>
+            <div className="system-card-meta-group system-card-meta-network">
+              <span className="system-card-meta-item system-card-meta-upload" role="img" aria-label={`Upload rate: ${uploadValue}`}><ArrowUp size={15} aria-hidden="true" /><strong>{uploadValue}</strong></span>
+              <span className="system-card-meta-item system-card-meta-download" role="img" aria-label={`Download rate: ${downloadValue}`}><ArrowDown size={15} aria-hidden="true" /><strong>{downloadValue}</strong></span>
+            </div>
+            <div className="system-card-meta-group system-card-meta-thermal">
+              <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={16} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
+              <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={14} aria-hidden="true" /><strong>{powerValue}</strong></span>
+            </div>
           </div>
         </div>
       </section>
