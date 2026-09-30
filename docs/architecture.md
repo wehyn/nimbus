@@ -40,11 +40,35 @@ local application registry indefinitely.
 Health polling pauses while the document is hidden and performs one refresh when the page becomes
 visible again; overview polling retains its five-second cadence.
 
-The overview endpoint derives uptime, CPU, memory, and filesystem storage from the host. Hardware
-telemetry uses local sysfs data and can fall back to an optional hardware agent configured through
-`HARDWARE_AGENT_URL`. The health endpoint checks each configured HTTP(S) target and reports
-`online`, `degraded`, or `offline`. The client refreshes overview data every five seconds and
-health data every thirty seconds; system detail modals refresh process data every five seconds.
+The overview endpoint derives uptime, CPU, memory, and Nimbus storage from the filesystem containing
+`DATABASE_PATH`. Hardware telemetry uses local sysfs data and can fall back to an optional hardware
+agent configured through `HARDWARE_AGENT_URL`. The agent measures traffic counters for the host's
+lowest-metric IPv4 default route and reports receive/send rates as download/upload; the ring fill is
+an activity cue and is not a link-capacity percentage. Storage details list Nimbus first, followed
+by exact mounted targets explicitly exposed below `/host/storage`; unmounted folders are ignored.
+The health endpoint checks each configured HTTP(S) target and reports `online`, `degraded`, or
+`offline`. The client refreshes overview data every five seconds and health data every thirty
+seconds; system detail modals refresh process data every five seconds.
+
+To expose another local or network-mounted filesystem to the storage selector, add one bind mount
+to the `metrics-agent` service for that filesystem's host mount point. Give each mount its own
+direct target such as `/host/storage/media`, mark it read-only, and set
+`bind.create_host_path: false`. The agent lists only direct child targets that are actual mounts in
+its mount table and calls `statfs` on those targets. Do not expose `/`, `/mnt`, or a parent directory
+containing several filesystems. The shipped Compose file includes no extra disk source paths, so it
+shows Nimbus until an operator adds individual mounts.
+
+For example, add this under `metrics-agent.volumes` and replace the source with one filesystem
+mount point on the host:
+
+```yaml
+- type: bind
+  source: /replace/with/one/mounted/filesystem
+  target: /host/storage/media
+  read_only: true
+  bind:
+    create_host_path: false
+```
 
 Metric history charts are mounted only inside processor and memory detail modals. Opening a chart performs one no-store history read; the Live selection reads the rolling five-minute window again every 30 seconds while the modal remains open, while 15m and 30m read once when selected. Unmounting the modal clears the timer and aborts any in-flight chart request. History samples are still recorded by overview sampling at the existing one-minute cadence and are retained for 30 days.
 

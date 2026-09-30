@@ -11,6 +11,9 @@ test("default Compose is project-scoped and keeps host binding configurable", ()
   assert.match(compose, /\n      HOSTNAME: 0\.0\.0\.0\n/);
   assert.doesNotMatch(compose, /container_name:/);
   assert.doesNotMatch(compose, /var\/run\/docker\.sock/);
+  assert.match(compose, /\n      PROC_ROOT: \/host\/proc\n/);
+  assert.match(compose, /\n      STORAGE_ROOT: \/host\/storage\n/);
+  assert.doesNotMatch(compose, /source: \/\n\s+target:/);
 });
 
 test("the optional Docker override remains explicitly read-only", () => {

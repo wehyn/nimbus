@@ -3,6 +3,7 @@ import path from "node:path";
 import { statfsSync } from "node:fs";
 import { NextResponse } from "next/server";
 import { HardwareSampler, type HardwareSnapshot } from "@/agent/hardware";
+import { calculateFilesystemUsage } from "@/agent/storage-volumes";
 import { recordMetricSnapshot } from "@/lib/db";
 import { HISTORY_RETENTION_DAYS, shouldRecordSnapshot } from "@/lib/metrics-history";
 import { createTtlCache } from "@/lib/ttl-cache";
@@ -31,7 +32,9 @@ type Overview = {
   storageUsed: string;
   storageAvailable: string;
   storageTotal: string;
-  network: string;
+  downloadBytesPerSecond: number | null;
+  uploadBytesPerSecond: number | null;
+  storageVolumes: NonNullable<HardwareSnapshot["storageVolumes"]>;
   updatedAt: string;
 };
 
@@ -68,7 +71,19 @@ async function sampleOverview(): Promise<Overview> {
     storageUsed: formatBytes(storage.usedBytes),
     storageAvailable: formatBytes(storage.availableBytes),
     storageTotal: formatBytes(storage.totalBytes),
-    network: "Local network",
+    downloadBytesPerSecond: hardware.networkRates?.receiveBytesPerSecond ?? null,
+    uploadBytesPerSecond: hardware.networkRates?.transmitBytesPerSecond ?? null,
+    storageVolumes: [
+      {
+        id: "nimbus",
+        label: "Nimbus",
+        reservedBytes: storage.reservedBytes,
+        usedBytes: storage.usedBytes,
+        availableBytes: storage.availableBytes,
+        totalBytes: storage.totalBytes,
+      },
+      ...(hardware.storageVolumes ?? []).filter((volume) => volume.id !== "nimbus"),
+    ],
     updatedAt,
   };
   const now = Date.now();
@@ -104,6 +119,20 @@ function isHardwareSnapshot(value: unknown): value is HardwareSnapshot {
   return (snapshot.temperatureC === null || isFiniteNumber(snapshot.temperatureC))
     && (snapshot.powerWatts === null || (isFiniteNumber(snapshot.powerWatts) && snapshot.powerWatts >= 0))
     && (snapshot.powerSource === null || snapshot.powerSource === "intel-rapl")
+    && (snapshot.networkRates === undefined || snapshot.networkRates === null || (
+      isNonnegativeFinite(snapshot.networkRates.receiveBytesPerSecond)
+      && isNonnegativeFinite(snapshot.networkRates.transmitBytesPerSecond)
+    ))
+    && (snapshot.storageVolumes === undefined || (
+      Array.isArray(snapshot.storageVolumes)
+      && snapshot.storageVolumes.every((volume) => Boolean(volume)
+        && typeof volume.id === "string" && volume.id.length > 0 && volume.id.length <= 128
+        && typeof volume.label === "string" && volume.label.length > 0 && volume.label.length <= 128
+        && isNullableNonnegativeFinite(volume.totalBytes)
+        && isNullableNonnegativeFinite(volume.usedBytes)
+        && isNullableNonnegativeFinite(volume.availableBytes)
+        && isNullableNonnegativeFinite(volume.reservedBytes))
+    ))
     && typeof snapshot.updatedAt === "string" && snapshot.updatedAt.length > 0;
 }
 
@@ -139,15 +168,7 @@ function getStorageUsage() {
     // Use the application filesystem until the database directory exists.
     stats = statfsSync(process.cwd());
   }
-  const totalBytes = stats.blocks * stats.bsize;
-  const availableBytes = stats.bavail * stats.bsize;
-  const usedBytes = totalBytes - availableBytes;
-  return {
-    totalBytes,
-    availableBytes,
-    usedBytes,
-    usedPercent: totalBytes ? roundPercent((usedBytes / totalBytes) * 100) : 0,
-  };
+  return calculateFilesystemUsage(stats);
 }
 
 function roundPercent(value: number) {
@@ -156,6 +177,14 @@ function roundPercent(value: number) {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isNonnegativeFinite(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0;
+}
+
+function isNullableNonnegativeFinite(value: unknown): value is number | null {
+  return value === null || isNonnegativeFinite(value);
 }
 
 function formatBytes(bytes: number) {

@@ -27,6 +27,8 @@ services:
     environment:
       AGENT_PORT: 8787
       SYS_ROOT: /host/sys
+      PROC_ROOT: /host/proc
+      STORAGE_ROOT: /host/storage
       MEMORY_AGENT_TOKEN: ${MEMORY_AGENT_TOKEN:-}
       DOCKER_AGENT_TOKEN: ${DOCKER_AGENT_TOKEN:-}
       DOCKER_SERVICES_ROOT: /host/services
