@@ -66,10 +66,20 @@ const overview = {
 
 test("refreshes the open application details when Docker discovery completes", async ({ page }) => {
   let appReads = 0;
+  let releaseRetryResponse: () => void = () => undefined;
+  let notifyRetryStarted: () => void = () => undefined;
+  const retryResponseReleased = new Promise<void>((resolve) => { releaseRetryResponse = resolve; });
+  const retryStarted = new Promise<void>((resolve) => { notifyRetryStarted = resolve; });
   await page.route("**/api/apps", async (route) => {
     appReads += 1;
-    if (appReads === 1) await new Promise((resolve) => setTimeout(resolve, 750));
-    await route.fulfill({ json: appReads === 1 ? pendingResponse : completedResponse });
+    if (appReads === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      await route.fulfill({ json: pendingResponse });
+      return;
+    }
+    notifyRetryStarted();
+    await retryResponseReleased;
+    await route.fulfill({ json: completedResponse });
   });
   await page.route("**/api/activity", (route) => route.fulfill({ json: { activities: [] } }));
   await page.route("**/api/overview", (route) => route.fulfill({ json: overview }));
@@ -82,8 +92,11 @@ test("refreshes the open application details when Docker discovery completes", a
   await page.getByRole("button", { name: "Edit Discovered service" }).click();
   const titleInput = page.getByLabel("Title");
   await titleInput.fill("Locally edited title");
-  await expect.poll(() => appReads).toBe(2);
   const imageMetadata = page.locator(".docker-metadata-item").filter({ hasText: "Docker image tag" });
+  await expect(imageMetadata).toContainText("Not reported");
+  await retryStarted;
+  expect(appReads).toBe(2);
+  releaseRetryResponse();
   await expect(imageMetadata).toContainText("example/discovered:1.0");
   await expect(titleInput).toHaveValue("Locally edited title");
   await imageMetadata.scrollIntoViewIfNeeded();
