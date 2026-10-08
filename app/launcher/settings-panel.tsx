@@ -130,6 +130,24 @@ function AppForm({ app, isNew, saving, onCancel, onSave, onDelete }: { app: Mana
     setCurrentHost(window.location.hostname);
   }, [app.id]);
 
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      containerId: app.containerId,
+      containerName: app.containerName,
+      containerImage: app.containerImage,
+      containerState: app.containerState,
+      containerHealth: app.containerHealth,
+      containerStartedAt: app.containerStartedAt,
+      containerObservedAt: app.containerObservedAt,
+      casaosScheme: app.casaosScheme,
+      casaosHostname: app.casaosHostname,
+      casaosPortMap: app.casaosPortMap,
+      casaosIndex: app.casaosIndex,
+      dockerDetails: app.dockerDetails,
+    }));
+  }, [app]);
+
   return <form className="app-form" onSubmit={handleSubmit}>
     <button type="button" className="back-button" onClick={onCancel}>← <span>All applications</span></button>
     <div className="form-title"><AppIcon app={form} large /><div><p className="eyebrow">{isNew ? "New service" : "Edit service"}</p><h3>{isNew ? "Add application" : form.name}</h3></div></div>

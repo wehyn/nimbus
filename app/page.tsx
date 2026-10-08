@@ -136,6 +136,7 @@ export default function Home() {
       if (!response?.ok || !Array.isArray(data.apps)) throw new Error(data.error || "Unable to load applications.");
       appsRef.current = data.apps;
       setApps(data.apps);
+      setEditing((current) => current ? data.apps?.find((app) => app.id === current.id) || current : null);
       setAppsError("");
       if (data.docker?.warnings?.includes("Docker discovery is still loading.") && discoveryRetry < 3) {
         appsDiscoveryRetryTimeoutRef.current = window.setTimeout(() => {

@@ -76,13 +76,16 @@ test("refreshes the open application details when Docker discovery completes", a
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 10, statusCode: 200 } }));
 
   await page.goto("/");
-  await expect.poll(() => appReads).toBe(2);
   await expect(page.getByRole("link", { name: "Discovered service" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Application management" })).toBeVisible();
   await page.getByRole("button", { name: "Application management" }).click();
   await page.getByRole("button", { name: "Edit Discovered service" }).click();
+  const titleInput = page.getByLabel("Title");
+  await titleInput.fill("Locally edited title");
+  await expect.poll(() => appReads).toBe(2);
   const imageMetadata = page.locator(".docker-metadata-item").filter({ hasText: "Docker image tag" });
   await expect(imageMetadata).toContainText("example/discovered:1.0");
+  await expect(titleInput).toHaveValue("Locally edited title");
   await imageMetadata.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/docker-discovery-refresh.png", animations: "disabled" });
   await page.waitForTimeout(1_100);
