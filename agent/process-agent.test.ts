@@ -122,6 +122,34 @@ test("sanitizeCommand redacts sensitive arguments and bounds output", () => {
   assert.equal(sanitizeCommand(`/usr/bin/app\0${"x".repeat(220)}`, "app").length, 180);
 });
 
+test("snapshot collectors redact compound long options and attached short password values", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nimbus-agent-secret-flags-"));
+  const procRoot = join(root, "proc");
+  const processRoot = join(procRoot, "10");
+  await mkdir(processRoot, { recursive: true });
+  await writeFile(join(procRoot, "stat"), "cpu  100 0 50 850 0 0 0 0\ncpu0 100 0 50 850 0 0 0 0\n");
+  await writeFile(join(procRoot, "loadavg"), "0.00 0.00 0.00 1/1 10\n");
+  await writeFile(join(procRoot, "meminfo"), "MemTotal:       1024 kB\nMemAvailable:    256 kB\n");
+  await writeFile(join(processRoot, "status"), "Name: app\nUid: 1000 1000 1000 1000\nVmRSS: 128 kB\n");
+  await writeFile(join(processRoot, "cmdline"), "/usr/bin/app\0--db-password=db-secret-literal\0--access-token=token-secret-literal\0-pshort-secret-literal\0");
+  await writeFile(join(processRoot, "stat"), "10 (app) S 1 1 1 1 1 1 1 1 1 1 100 20\n");
+  const passwdPath = join(root, "passwd");
+  await writeFile(passwdPath, "developer:x:1000:1000::/home/developer:/bin/sh\n");
+
+  try {
+    const memorySnapshot = await collectSnapshot({ procRoot, passwdPath });
+    const processorSnapshot = await collectProcessorSnapshot({ procRoot, passwdPath });
+    const expectedCommand = "app --db-password=<redacted> --access-token=<redacted> -p<redacted>";
+    assert.equal(memorySnapshot.processes[0]?.command, expectedCommand);
+    assert.equal(processorSnapshot.processes[0]?.command, expectedCommand);
+    for (const snapshot of [memorySnapshot, processorSnapshot]) {
+      assert.doesNotMatch(snapshot.processes[0]?.command ?? "", /db-secret-literal|token-secret-literal|short-secret-literal/);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("collectProcessorSnapshot includes every readable process and load data", async () => {
   const root = await mkdtemp(join(tmpdir(), "nimbus-agent-"));
   const procRoot = join(root, "proc");
