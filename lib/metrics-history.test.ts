@@ -4,6 +4,7 @@ import { HISTORY_RETENTION_DAYS, HISTORY_SAMPLE_INTERVAL_MS, normalizeHistoryMin
 
 test("normalizes supported history ranges and clamps invalid values", () => {
   assert.equal(normalizeHistoryMinutes(undefined), 5);
+  assert.equal(normalizeHistoryMinutes(null), 5);
   assert.equal(normalizeHistoryMinutes("15"), 15);
   assert.equal(normalizeHistoryMinutes("10080"), 10080);
   assert.equal(normalizeHistoryMinutes("0"), 1);

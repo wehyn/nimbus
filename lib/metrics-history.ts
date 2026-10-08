@@ -13,6 +13,8 @@ export type HistoricalMetric = {
 };
 
 export function normalizeHistoryMinutes(value: string | null | undefined) {
+  if (value == null) return DEFAULT_HISTORY_MINUTES;
+
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_HISTORY_MINUTES;
   return Math.min(MAX_HISTORY_MINUTES, Math.max(1, Math.floor(parsed)));
