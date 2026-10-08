@@ -36,7 +36,10 @@ statuses on failed checks, skip overlapping client refreshes, and run with a max
 concurrent checks. Activity is refreshed only when a successful health cycle changes an app status.
 Docker discovery has an agent-side deadline, bounded concurrent container inspection, bounded
 Compose traversal, and a short server-side fallback budget so optional discovery cannot block the
-local application registry indefinitely.
+local application registry indefinitely. When the `/api/apps` response reports that Docker
+discovery is still loading, the browser retries the registry read once per second up to three
+times. Completed discovery responses stop this refresh; the server's 750 ms response budget remains
+unchanged.
 Health polling pauses while the document is hidden and performs one refresh when the page becomes
 visible again; overview polling retains its five-second cadence.
 

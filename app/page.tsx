@@ -49,11 +49,12 @@ export default function Home() {
   const activityRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const appsRequestRef = useRef<AbortController | null>(null);
   const appsLoadVersionRef = useRef(0);
+  const appsDiscoveryRetryTimeoutRef = useRef<number | null>(null);
   const savedNoticeTimeoutRef = useRef<number | null>(null);
   const settingsTriggerRef = useRef<HTMLElement | null>(null);
   const systemDetailsTriggerRef = useRef<HTMLElement | null>(null);
   const appsRef = useRef(apps);
-  const loadAppsRef = useRef<(() => void) | null>(null);
+  const loadAppsRef = useRef<((discoveryRetry?: number) => void) | null>(null);
   const refreshOverviewRef = useRef<(() => void) | null>(null);
   const refreshHealthRef = useRef<(() => void) | null>(null);
   appsRef.current = apps;
@@ -109,12 +110,17 @@ export default function Home() {
 
   useEffect(() => () => {
     if (savedNoticeTimeoutRef.current !== null) window.clearTimeout(savedNoticeTimeoutRef.current);
+    if (appsDiscoveryRetryTimeoutRef.current !== null) window.clearTimeout(appsDiscoveryRetryTimeoutRef.current);
     healthRequestRef.current?.abort();
     overviewRequestRef.current?.abort();
     appsRequestRef.current?.abort();
   }, []);
 
-  const loadApps = useCallback(async () => {
+  const loadApps = useCallback(async (discoveryRetry = 0) => {
+    if (appsDiscoveryRetryTimeoutRef.current !== null) {
+      window.clearTimeout(appsDiscoveryRetryTimeoutRef.current);
+      appsDiscoveryRetryTimeoutRef.current = null;
+    }
     const loadVersion = appsLoadVersionRef.current + 1;
     appsLoadVersionRef.current = loadVersion;
     appsRequestRef.current?.abort();
@@ -124,13 +130,19 @@ export default function Home() {
     setAppsError("");
     try {
       const response = await fetch("/api/apps", { cache: "no-store", signal: controller.signal }).catch(() => null);
-      const data = response ? await response.json().catch(() => ({})) as { apps?: ManagedApp[]; error?: string } : {};
+      const data = response ? await response.json().catch(() => ({})) as { apps?: ManagedApp[]; error?: string; docker?: { warnings?: string[] } } : {};
       if (response && !response.ok) await response.body?.cancel().catch(() => undefined);
       if (controller.signal.aborted || loadVersion !== appsLoadVersionRef.current) return;
       if (!response?.ok || !Array.isArray(data.apps)) throw new Error(data.error || "Unable to load applications.");
       appsRef.current = data.apps;
       setApps(data.apps);
       setAppsError("");
+      if (data.docker?.warnings?.includes("Docker discovery is still loading.") && discoveryRetry < 3) {
+        appsDiscoveryRetryTimeoutRef.current = window.setTimeout(() => {
+          appsDiscoveryRetryTimeoutRef.current = null;
+          void loadAppsRef.current?.(discoveryRetry + 1);
+        }, 1_000);
+      }
     } catch (caught) {
       if (!controller.signal.aborted && loadVersion === appsLoadVersionRef.current && !appsRef.current.length) setAppsError(caught instanceof Error ? caught.message : "Unable to load applications.");
     } finally {
