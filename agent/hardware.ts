@@ -141,8 +141,6 @@ async function readHwmonTemperature(sysRoot: string): Promise<number | null> {
   const sensors = entries
     .filter((entry) => (entry.isDirectory() || entry.isSymbolicLink()) && /^hwmon\d+$/.test(entry.name))
     .sort((left, right) => Number(left.name.slice(5)) - Number(right.name.slice(5)));
-  let fallback: number | null = null;
-
   for (const sensor of sensors) {
     const sensorPath = await resolveSysfsEntry(sysRoot, hwmonRoot, sensor.name);
     const sensorName = (await readText(join(sensorPath, "name")))?.trim() || "";
@@ -157,11 +155,10 @@ async function readHwmonTemperature(sysRoot: string): Promise<number | null> {
       const labelName = input.name.replace(/_input$/, "_label");
       const label = (await readText(join(sensorPath, labelName)))?.trim() || "";
       if (isCpuSensor(`${sensorName} ${label}`)) return temperature;
-      fallback ??= temperature;
     }
   }
 
-  return fallback;
+  return null;
 }
 
 function isCpuSensor(value: string) {
