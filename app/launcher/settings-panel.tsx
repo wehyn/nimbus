@@ -105,6 +105,7 @@ function AppForm({ app, isNew, saving, onCancel, onSave, onDelete }: { app: Mana
   const projectId = appFieldId(form.id, "compose-project");
   const serviceId = appFieldId(form.id, "compose-service");
   const tlsId = appFieldId(form.id, "tls");
+  const visibilityId = appFieldId(form.id, "visibility");
   const update = (key: keyof ManagedApp, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
   const updateWebUi = (protocol: AppUrlProtocol, port: string) => {
     if (!automaticHost) return;
@@ -140,6 +141,7 @@ function AppForm({ app, isNew, saving, onCancel, onSave, onDelete }: { app: Mana
     <label htmlFor={healthUrlId}>Health URL <span className="optional">optional</span><input id={healthUrlId} type="url" value={form.healthUrl || ""} onChange={(event) => update("healthUrl", event.target.value)} placeholder="https://.../health" /></label>
     <div className="form-columns form-columns-equal"><label htmlFor={projectId}>Compose project <span className="optional">optional</span><input id={projectId} value={form.dockerProject || ""} onChange={(event) => update("dockerProject", event.target.value)} placeholder="project-name" /></label><label htmlFor={serviceId}>Compose service <span className="optional">optional</span><input id={serviceId} value={form.dockerService || ""} onChange={(event) => update("dockerService", event.target.value)} placeholder="service-name" /></label></div>
     <DockerDetails app={form} />
+    <div className="toggle-row"><div><label htmlFor={visibilityId}><strong>Show on launcher</strong></label><small id={`${visibilityId}-description`}>Keep this application in management while hiding it from your home screen.</small></div><button id={visibilityId} type="button" className={`toggle ${form.isVisible ? "toggle-on" : ""}`} onClick={() => update("isVisible", !form.isVisible)} aria-label="Show on launcher" aria-describedby={`${visibilityId}-description`} aria-pressed={form.isVisible}><span /></button></div>
     <div className="toggle-row"><div><label htmlFor={tlsId}><strong>Allow self-signed TLS</strong></label><small id={`${tlsId}-description`}>Health checks and favicon fetching; use for trusted private services.</small></div><button id={tlsId} type="button" className={`toggle ${form.allowInsecureTls ? "toggle-on" : ""}`} onClick={() => update("allowInsecureTls", !form.allowInsecureTls)} aria-label="Allow self-signed TLS" aria-describedby={`${tlsId}-description`} aria-pressed={form.allowInsecureTls}><span /></button></div>
     <div className="form-actions"><button type="button" className="button subtle" onClick={onCancel} disabled={saving}>Cancel</button>{!isNew && <button type="button" className="delete-button" onClick={handleDelete} disabled={saving}><Trash2 size={15} aria-hidden="true" />Delete</button>}<button type="submit" className="button primary" disabled={saving}><Check size={16} aria-hidden="true" />{saving ? "Saving…" : "Save changes"}</button></div>
   </form>;
