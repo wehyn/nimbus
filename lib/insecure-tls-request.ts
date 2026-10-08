@@ -1,10 +1,12 @@
 import https from "node:https";
+import type { IncomingMessage } from "node:http";
 
 export function requestWithInsecureTls(target: URL, requestSignal?: AbortSignal) {
   return new Promise<{ statusCode: number }>((resolve, reject) => {
     let settled = false;
     let timeout: NodeJS.Timeout;
     let request: ReturnType<typeof https.request>;
+    let response: IncomingMessage | undefined;
 
     const cleanup = () => {
       clearTimeout(timeout);
@@ -23,11 +25,15 @@ export function requestWithInsecureTls(target: URL, requestSignal?: AbortSignal)
       });
     };
 
-    request = https.request(target, { method: "GET", rejectUnauthorized: false }, (response) => {
-      const statusCode = response.statusCode ?? 0;
-      response.resume();
-      response.once("end", () => finish(() => resolve({ statusCode })));
-      response.once("error", (error) => finish(() => reject(error)));
+    request = https.request(target, { method: "GET", rejectUnauthorized: false }, (incomingResponse) => {
+      response = incomingResponse;
+      const statusCode = incomingResponse.statusCode ?? 0;
+      incomingResponse.resume();
+      incomingResponse.once("end", () => finish(() => resolve({ statusCode })));
+      incomingResponse.once("error", (error) => finish(() => reject(error)));
+      incomingResponse.once("close", () => {
+        if (!incomingResponse.complete) finish(() => reject(new Error("Health check response closed")));
+      });
     });
     timeout = setTimeout(() => {
       finish(() => {
@@ -43,7 +49,9 @@ export function requestWithInsecureTls(target: URL, requestSignal?: AbortSignal)
       abort();
       return;
     }
-    request.once("close", cleanup);
+    request.once("close", () => {
+      if (!response || !response.complete) finish(() => reject(new Error("Health check request closed")));
+    });
     request.end();
   });
 }
