@@ -2,7 +2,10 @@
 
 ## Automated tests
 
-`npm test` runs Node's built-in test runner over `agent/*.test.ts` and `lib/*.test.ts`.
+`npm test` runs Node's built-in test runner serially (`--test-concurrency=1`) over
+`agent/*.test.ts` and `lib/*.test.ts`. Several integration tests launch Next.js development servers
+that share the worktree's `.next/` directory, so test files must not run concurrently within one
+worktree.
 Coverage includes discovery, metrics sampling, URL handling, request validation, database-row
 mapping, health-target construction, legacy SQLite compatibility, and short-TTL/concurrency
 helpers. `npm run build:agent` separately compiles the optional metrics agent.
@@ -105,7 +108,12 @@ scan bound, 256-row response cap, bounded concurrent reads, and cancellation sig
 Playwright browser tests need Chromium (`npx playwright install --with-deps chromium`). CI sets
 Node.js 24 and runs the same isolated development-server configuration.
 
-The domain suite contains legacy-database tests that start temporary Next servers, and the browser suite starts another Next server. Run these commands serially in one worktree: concurrent Next processes can write the shared .next/ directory and produce missing vendor chunks or cross-test database results. CI jobs are isolated and may run in parallel on separate workers.
+The domain suite contains legacy-database and health-route tests that start temporary Next servers,
+and the browser suite starts another Next server. The domain test files run serially within one
+worktree because concurrent Next processes can write the shared `.next/` directory and produce
+missing vendor chunks or cross-test database results. Run browser tests, development servers, and
+builds serially in that worktree as well. CI jobs are isolated and may run in parallel on separate
+workers.
 
 ## Build discipline
 

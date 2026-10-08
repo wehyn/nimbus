@@ -1,7 +1,7 @@
-import https from "node:https";
 import { NextResponse } from "next/server";
 import { findApp, getHealthPersistenceSnapshot, updateAppStatusIfHealthSnapshotMatches } from "@/lib/db";
 import { isCasaOSHealthSuccess, resolveHealthTarget } from "@/lib/health-target";
+import { requestWithInsecureTls } from "@/lib/insecure-tls-request";
 import type { AppStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -51,55 +51,4 @@ async function fetchWithTimeout(target: URL, requestSignal: AbortSignal) {
     clearTimeout(timeout);
     requestSignal.removeEventListener("abort", abort);
   }
-}
-
-function requestWithInsecureTls(target: URL, requestSignal?: AbortSignal) {
-  return new Promise<{ statusCode: number }>((resolve, reject) => {
-    let settled = false;
-    const request = https.request(target, { method: "GET", rejectUnauthorized: false }, (response) => {
-      const statusCode = response.statusCode ?? 0;
-      response.resume();
-      response.once("end", () => {
-        clearTimeout(timeout);
-        requestSignal?.removeEventListener("abort", abort);
-        if (settled) return;
-        settled = true;
-        resolve({ statusCode });
-      });
-      response.once("error", (error) => {
-        clearTimeout(timeout);
-        requestSignal?.removeEventListener("abort", abort);
-        if (settled) return;
-        settled = true;
-        reject(error);
-      });
-    });
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      request.destroy(new Error("Health check timed out"));
-    }, 4500);
-    const abort = () => {
-      if (settled) return;
-      settled = true;
-      request.destroy(new Error("Health check aborted"));
-    };
-    requestSignal?.addEventListener("abort", abort, { once: true });
-    if (requestSignal?.aborted) {
-      abort();
-      return;
-    }
-    request.once("error", (error) => {
-      clearTimeout(timeout);
-      requestSignal?.removeEventListener("abort", abort);
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-    request.once("close", () => {
-      clearTimeout(timeout);
-      requestSignal?.removeEventListener("abort", abort);
-    });
-    request.end();
-  });
 }
