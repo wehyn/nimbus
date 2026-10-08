@@ -118,6 +118,10 @@ test("collectSnapshot reports processes that cannot be read", async () => {
 
 test("sanitizeCommand redacts sensitive arguments and bounds output", () => {
   assert.equal(sanitizeCommand("/usr/bin/app\0--password=secret", "app"), "app --password=<redacted>");
+  assert.equal(
+    sanitizeCommand("/usr/bin/app\0-path=/data\0-plugin=foo\0-project=x", "app"),
+    "app -path=/data -plugin=foo -project=x",
+  );
   assert.equal(sanitizeCommand("", "kernel-thread"), "kernel-thread");
   assert.equal(sanitizeCommand(`/usr/bin/app\0${"x".repeat(220)}`, "app").length, 180);
 });

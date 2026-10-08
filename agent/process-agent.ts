@@ -246,7 +246,7 @@ export function sanitizeCommand(rawCommand: string, fallbackName: string): strin
       continue;
     }
 
-    if (/^-p(?:ort|rofile|id)(?:=|$)/.test(arg)) {
+    if (/^-(?:pid|port|profile|path|plugin|project)(?:=|$)/.test(arg)) {
       sanitized.push(arg);
       continue;
     }
