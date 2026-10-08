@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,10 +7,12 @@ import { readCpuTemperature } from "./hardware.ts";
 
 test("does not report unrelated hwmon temperatures as CPU temperature", async () => {
   const root = await mkdtemp(join(tmpdir(), "nimbus-unrelated-hwmon-"));
-  const gpuSensor = join(root, "class", "hwmon", "hwmon0");
-  const storageSensor = join(root, "class", "hwmon", "hwmon1");
-  const batterySensor = join(root, "class", "hwmon", "hwmon2");
-  await Promise.all([gpuSensor, storageSensor, batterySensor].map((path) => mkdir(path, { recursive: true })));
+  const classRoot = join(root, "class", "hwmon");
+  const gpuSensor = join(root, "devices", "pci0000:03", "0000:03:00.0", "hwmon", "hwmon0");
+  const storageSensor = join(classRoot, "hwmon1");
+  const batterySensor = join(classRoot, "hwmon2");
+  await Promise.all([classRoot, gpuSensor, storageSensor, batterySensor].map((path) => mkdir(path, { recursive: true })));
+  await symlink("../../devices/pci0000:03/0000:03:00.0/hwmon/hwmon0", join(classRoot, "hwmon0"));
   await Promise.all([
     writeFile(join(gpuSensor, "name"), "amdgpu\n"),
     writeFile(join(gpuSensor, "temp1_label"), "junction\n"),
