@@ -246,12 +246,17 @@ export function sanitizeCommand(rawCommand: string, fallbackName: string): strin
       continue;
     }
 
-    if (/^-p.+/i.test(arg)) {
+    if (/^-p(?:ort|rofile|id)(?:=|$)/.test(arg)) {
+      sanitized.push(arg);
+      continue;
+    }
+
+    if (/^-p.+/.test(arg)) {
       sanitized.push("-p<redacted>");
       continue;
     }
 
-    const keyMatch = /^--?(?:[a-z0-9]+[-_])?(?:password|passwd|pass|token|secret|api[-_]?key|access[-_]?key|auth|credential)(?:=|$)/i.test(arg);
+    const keyMatch = /^--?(?:[a-z0-9]+[-_])*(?:password|passwd|pass|token|secret|api[-_]?key|access[-_]?key|auth|credential)(?:=|$)/i.test(arg);
     if (keyMatch) {
       sanitized.push(arg.includes("=") ? `${arg.slice(0, arg.indexOf("=") + 1)}<redacted>` : `${arg}=<redacted>`);
       if (!arg.includes("=")) redactNext = true;

@@ -131,7 +131,7 @@ test("snapshot collectors redact compound long options and attached short passwo
   await writeFile(join(procRoot, "loadavg"), "0.00 0.00 0.00 1/1 10\n");
   await writeFile(join(procRoot, "meminfo"), "MemTotal:       1024 kB\nMemAvailable:    256 kB\n");
   await writeFile(join(processRoot, "status"), "Name: app\nUid: 1000 1000 1000 1000\nVmRSS: 128 kB\n");
-  await writeFile(join(processRoot, "cmdline"), "/usr/bin/app\0--db-password=db-secret-literal\0--access-token=token-secret-literal\0-pshort-secret-literal\0");
+  await writeFile(join(processRoot, "cmdline"), "/usr/bin/app\0--my-db-password=db-secret-literal\0--access-token=token-secret-literal\0-pshort-secret-literal\0-port=8080\0-profile\0-pid\0-Pkeep-visible\0");
   await writeFile(join(processRoot, "stat"), "10 (app) S 1 1 1 1 1 1 1 1 1 1 100 20\n");
   const passwdPath = join(root, "passwd");
   await writeFile(passwdPath, "developer:x:1000:1000::/home/developer:/bin/sh\n");
@@ -139,7 +139,7 @@ test("snapshot collectors redact compound long options and attached short passwo
   try {
     const memorySnapshot = await collectSnapshot({ procRoot, passwdPath });
     const processorSnapshot = await collectProcessorSnapshot({ procRoot, passwdPath });
-    const expectedCommand = "app --db-password=<redacted> --access-token=<redacted> -p<redacted>";
+    const expectedCommand = "app --my-db-password=<redacted> --access-token=<redacted> -p<redacted> -port=8080 -profile -pid -Pkeep-visible";
     assert.equal(memorySnapshot.processes[0]?.command, expectedCommand);
     assert.equal(processorSnapshot.processes[0]?.command, expectedCommand);
     for (const snapshot of [memorySnapshot, processorSnapshot]) {
