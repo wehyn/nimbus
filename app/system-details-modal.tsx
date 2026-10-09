@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpDown, Cpu, Database, HardDrive, RefreshCw, TriangleAlert, X } from "lucide-react";
 import { getNextProcessSortDirection, getProcessSortButtonLabel, getProcessTableCaption } from "@/lib/system-details-accessibility";
@@ -32,7 +32,7 @@ const memorySortLabels: Partial<Record<SortKey, string>> = {
 
 const motionTransition = { duration: 0.2, ease: "easeOut" as const };
 
-export default function SystemDetailsModal({ kind, onClose, overview = null, overviewError = "", onRefreshOverview }: {
+function SystemDetailsModalComponent({ kind, onClose, overview = null, overviewError = "", onRefreshOverview }: {
   kind: SystemDetailKind;
   onClose: () => void;
   overview?: ServerOverview | null;
@@ -225,6 +225,8 @@ export default function SystemDetailsModal({ kind, onClose, overview = null, ove
     </section>
   </motion.div>;
 }
+
+export default memo(SystemDetailsModalComponent);
 
 function StorageDetails({ overview, error, refreshing, onRefresh }: {
   overview: ServerOverview | null;

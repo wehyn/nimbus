@@ -106,6 +106,58 @@ async function installDashboardFixtures(page: import("@playwright/test").Page, f
 }
 
 test.describe("dashboard browser regressions", () => {
+  const orderScenarios = [
+    { label: "after a deletion gap", orders: [0, 1, 2], deletedIndex: 1, expectedOrder: 3 },
+    { label: "with negative existing orders", orders: [-4, -3], deletedIndex: 0, expectedOrder: -2 },
+  ];
+
+  for (const scenario of orderScenarios) {
+    for (const addFrom of ["management panel", "launcher tile"] as const) {
+      test(`adds after the maximum ${scenario.label} from the ${addFrom}`, async ({ page }) => {
+      const fixtureApps = scenario.orders.map((sortOrder, index) => ({
+        ...apps[0],
+        id: `fixture-${index}`,
+        name: index === scenario.deletedIndex ? "Delete me" : `Existing ${index}`,
+        sortOrder,
+        isVisible: index !== scenario.orders.length - 1,
+      }));
+        let persistedApps = fixtureApps;
+        let postedApp: DashboardApp | null = null;
+        await installDashboardFixtures(page, persistedApps);
+        await page.unroute("**/api/apps");
+        await page.route("**/api/apps", async (route) => {
+          if (route.request().method() === "GET") return route.fulfill({ json: { apps: persistedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+          if (route.request().method() === "DELETE") {
+            persistedApps = persistedApps.filter((app) => app.id !== (route.request().postDataJSON() as { id: string }).id);
+            return route.fulfill({ json: { ok: true } });
+          }
+          postedApp = route.request().postDataJSON() as DashboardApp;
+          persistedApps = [...persistedApps, postedApp];
+          return route.fulfill({ json: { app: postedApp } });
+        });
+        await page.goto("/");
+        await page.getByRole("button", { name: "Application management" }).click();
+        await page.getByRole("button", { name: "Edit Delete me" }).click();
+        page.on("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: "Delete", exact: false }).click();
+        await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
+
+        if (addFrom === "launcher tile") {
+          await page.getByRole("button", { name: "Close application modal" }).click();
+          await page.getByRole("button", { name: "Add application" }).click();
+        } else {
+          await page.getByRole("button", { name: "Add", exact: true }).click();
+        }
+        const dialog = page.getByRole("dialog", { name: "Application details" });
+        await dialog.getByLabel("Title").fill(`Added via ${addFrom}`);
+        await dialog.getByLabel("Application URL").fill("https://added.invalid");
+        await dialog.getByRole("button", { name: "Save changes" }).click();
+        await expect.poll(() => postedApp?.sortOrder).toBe(scenario.expectedOrder);
+        await expect(page.getByRole("link", { name: `Added via ${addFrom}` })).toBeVisible();
+      });
+    }
+  }
+
   test("shows network rates beside temperature and power and lets me switch storage volumes", async ({ page }) => {
     const fixtureOverview = { ...overview, temperatureC: 53, powerWatts: 3.28 };
     await installDashboardFixtures(page, apps, [], fixtureOverview);

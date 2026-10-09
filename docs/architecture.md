@@ -22,7 +22,13 @@ flowchart TD
     Next --> Static[app/globals.css and public/]
 ```
 
-The browser initially loads the application registry and server overview. Application changes are
+The browser initially loads the application registry and server overview. `app/page.tsx` owns the
+application registry, health state, and mutations. `SystemOverview` owns the overview request,
+five-second poll, readings, and system-detail selection; `LauncherClock` owns its thirty-second
+clock tick. `ApplicationGrid` filters and renders app states, while memoized launcher tiles and the
+settings panel isolate stable application UI from unrelated overview and clock updates. New app
+sort orders are derived from the highest current order, including hidden apps, so gaps from deletion
+do not cause a duplicate order. Application changes are
 sent to `/api/apps`, whose handlers delegate to the singleton `DatabaseSync` connection in
 `lib/db.ts`. The database creates its schema and seeds `lib/seed.ts` only when the `apps` table is
 empty.
@@ -77,9 +83,12 @@ Metric history charts are mounted only inside processor and memory detail modals
 
 ## Main components
 
-- `app/page.tsx`: launcher state, polling, application mutations, and modal orchestration.
-- `app/launcher/`: launcher tiles, settings, icons, activity, and display helpers.
-- `app/system-details-modal.tsx`: sortable CPU and memory process views.
+- `app/page.tsx`: application registry, health polling, application mutations, and settings modal.
+- `app/launcher/system-overview.tsx`: overview polling/readings and system-detail ownership.
+- `app/launcher/launcher-clock.tsx`: local clock state and timer.
+- `app/launcher/application-grid.tsx`: app filtering, loading/error states, and launcher tiles.
+- `app/launcher/`: settings, icons, activity, and display helpers.
+- `app/system-details-modal.tsx`: sortable CPU and memory process views plus storage details.
 - `app/api/apps/`: application CRUD API.
 - `app/api/health/`: configured service health checks.
 - `app/api/overview/`: host overview metrics.
@@ -89,6 +98,7 @@ Metric history charts are mounted only inside processor and memory detail modals
 - `lib/db.ts`: server-only SQLite access.
 - `lib/seed.ts`: default application records.
 - `lib/types.ts`: shared application and telemetry types.
+- `lib/app-order.ts`: next application sort-order calculation.
 
 ## Persistence and deployment
 

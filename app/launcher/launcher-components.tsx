@@ -1,23 +1,24 @@
 import { resolveAppLaunchUrl } from "@/lib/app-url";
 import type { ReactNode } from "react";
+import { memo } from "react";
 import type { ManagedApp } from "@/lib/types";
 import { Plus } from "lucide-react";
 import { AppIcon } from "./icons";
 import { statusCopy } from "./utils";
 
-export function LauncherTile({ app }: { app: ManagedApp }) {
+export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedApp }) {
   const launchUrl = resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname);
 
   return <a key={`${app.id}:${launchUrl}`} className="launcher-tile" href={launchUrl} target="_blank" rel="noreferrer" aria-label={app.name} title={`${app.name} · ${statusCopy[app.status]}`}>
     <span className="launcher-iconwrap"><AppIcon app={app} large /></span>
   </a>;
-}
+});
 
-export function AddApplicationTile({ onAdd }: { onAdd: () => void }) {
+export const AddApplicationTile = memo(function AddApplicationTile({ onAdd }: { onAdd: () => void }) {
   return <button type="button" className="launcher-tile launcher-add-tile" onClick={onAdd} aria-label="Add application" title="Add application">
     <span className="launcher-iconwrap"><span className="app-icon app-icon-large add-app-icon"><svg className="add-app-border" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><path d="M 18 1 H 82 C 91.4 1 99 8.6 99 18 V 82 C 99 91.4 91.4 99 82 99 H 18 C 8.6 99 1 91.4 1 82 V 18 C 1 8.6 8.6 1 18 1 Z" /></svg><Plus className="add-app-plus" size={32} strokeWidth={1.35} aria-hidden="true" /></span></span>
   </button>;
-}
+});
 
 export function SystemMetric({ icon, label, value, progress, tone, onOpen, loading = false, variant = "bar" }: { icon: ReactNode; label: string; value: string; progress?: number; tone: "green" | "blue" | "orange"; onOpen?: () => void; loading?: boolean; variant?: "ring" | "bar" }) {
   const clamped = progress === undefined ? 0 : Math.min(100, Math.max(0, progress));
