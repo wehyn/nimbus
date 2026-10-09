@@ -8,6 +8,7 @@ import { AppIcon } from "./icons";
 import { ActivityRow } from "./activity";
 import { statusCopy, blankApp } from "./utils";
 import { getFocusableElements } from "@/app/modal-focus.tsx";
+import { nextAppSortOrder } from "@/lib/app-order";
 
 const motionTransition = { duration: 0.2, ease: "easeOut" as const };
 
@@ -80,7 +81,7 @@ export function SettingsPanel({ apps, activities, editing, deletingId, saving, m
       {editing
         ? <motion.div key={`form-${editing.id}`} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={motionTransition}><AppForm app={editing} isNew={!apps.some((app) => app.id === editing.id)} saving={saving} onCancel={() => onEdit(null)} onSave={onSave} onDelete={onDelete} /></motion.div>
         : <motion.div key="application-list" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} transition={motionTransition}>
-          <div className="panel-section"><div className="panel-section-heading"><div><h3>Applications</h3><p>Manage what appears on your home screen.</p></div><button type="button" className="small-primary" onClick={() => onEdit(blankApp(apps.length))}><Plus size={15} aria-hidden="true" />Add</button></div>
+          <div className="panel-section"><div className="panel-section-heading"><div><h3>Applications</h3><p>Manage what appears on your home screen.</p></div><button type="button" className="small-primary" onClick={() => onEdit(blankApp(nextAppSortOrder(apps)))}><Plus size={15} aria-hidden="true" />Add</button></div>
             <div className="settings-list"><AnimatePresence initial={false} mode="popLayout">{apps.map((app) => <motion.div className="settings-app" key={app.id} layout initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, x: 8 }} transition={motionTransition}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.category} · {statusCopy[app.status]}</small></div><button type="button" className="edit-button" disabled={deletingId === app.id} onClick={() => onEdit(app)} aria-label={`Edit ${app.name}`}><Pencil size={15} aria-hidden="true" /></button></motion.div>)}</AnimatePresence></div>
           </div>
           <div className="panel-section"><div className="panel-section-heading"><div><h3>Recent activity</h3><p>App changes and health events.</p></div>{activities.length > 0 && <button type="button" className="more-button" onClick={onRefreshActivity} aria-label="Refresh recent activity"><RefreshCw size={15} aria-hidden="true" /></button>}</div>{activities.length ? <div className="settings-activity">{activities.map((activity) => <ActivityRow key={activity.id} activity={activity} now={activityNow} />)}</div> : <div className="activity-empty"><Activity size={20} aria-hidden="true" /><strong>No recent activity</strong><small>App changes and health events will appear here.</small></div>}</div>

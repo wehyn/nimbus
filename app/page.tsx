@@ -8,6 +8,7 @@ import SystemDetailsModal, { type SystemDetailKind } from "@/app/system-details-
 import { AddApplicationTile, LauncherTile, SystemMetric } from "@/app/launcher/launcher-components";
 import { SettingsPanel } from "@/app/launcher/settings-panel";
 import { blankApp, formatNetworkRate, formatPercent, formatPower, formatTemperature } from "@/app/launcher/utils";
+import { nextAppSortOrder } from "@/lib/app-order";
 import { fetchHealthStatus } from "@/lib/health-client";
 import { mapWithConcurrency } from "@/lib/async-work";
 import { applyHealthResults, hasHealthStatusTransition } from "@/lib/health-results";
@@ -385,7 +386,7 @@ export default function Home() {
   } else if (appsError) {
     launcherContent = <motion.div key="apps-error" className="empty-state" role="alert" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={motionTransition}><TriangleAlert size={28} aria-hidden="true" /><strong>Applications unavailable</strong><span>{appsError}</span><button type="button" className="small-primary" onClick={() => void loadApps()}>Try again</button></motion.div>;
   } else {
-    launcherContent = <motion.div key="app-grid" className={`launcher-grid ${visibleApps.length ? "" : "launcher-grid-empty"}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition}><AnimatePresence initial={false} mode="popLayout">{visibleApps.map((app) => <motion.div key={app.id} className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={motionTransition}><LauncherTile app={app} /></motion.div>)}<motion.div key="add-application" className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={motionTransition}><AddApplicationTile onAdd={() => openSettings(blankApp(apps.length))} /></motion.div></AnimatePresence></motion.div>;
+    launcherContent = <motion.div key="app-grid" className={`launcher-grid ${visibleApps.length ? "" : "launcher-grid-empty"}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition}><AnimatePresence initial={false} mode="popLayout">{visibleApps.map((app) => <motion.div key={app.id} className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={motionTransition}><LauncherTile app={app} /></motion.div>)}<motion.div key="add-application" className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={motionTransition}><AddApplicationTile onAdd={() => openSettings(blankApp(nextAppSortOrder(apps)))} /></motion.div></AnimatePresence></motion.div>;
   }
 
   return <main className="launcher">
