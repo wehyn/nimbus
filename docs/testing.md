@@ -90,6 +90,8 @@ Removing the chart's storage and retention footer copy does not change the backe
 
 The performance smoke suite asserts structural boundaries—one initial app request, no unexpected
 health fan-out, and no page-level horizontal overflow—rather than machine-specific timing budgets.
+It also uses Chromium precise JavaScript coverage to verify that overview refreshes and clock ticks
+update their visible values without invoking the launcher tile or an open settings panel.
 Health fan-out is additionally bounded to eight concurrent browser checks, activity reads are
 coalesced, and activity refresh coverage distinguishes status transitions from unchanged successful
 checks. Docker discovery tests also verify container inspection limits, cancellation, Compose file
