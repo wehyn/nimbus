@@ -62,6 +62,7 @@ function SystemOverviewComponent({ children, healthRefreshing, settingsOpen, onR
     return () => {
       window.clearInterval(interval);
       overviewRequestRef.current?.abort();
+      overviewRequestRef.current = null;
     };
   }, [refreshOverview]);
 
