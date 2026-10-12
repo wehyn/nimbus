@@ -206,7 +206,7 @@ function SystemDetailsModalComponent({ kind, onClose, overview = null, overviewE
         <SystemSummary label="Processes" value={`${processorSnapshot.returnedCount} / ${processorSnapshot.totalCount}`} detail={processSummaryDetail(processorSnapshot)} tone="blue" icon={<Cpu size={16} />} />
       </section>}
       {memorySnapshot && <section className="memory-summary system-details-summary">
-        <SystemSummary label="Used" value={formatBytes(memorySnapshot.usedBytes)} detail={`${memorySnapshot.usedPercent}% of total`} tone="blue" icon={<Database size={16} />} />
+        <SystemSummary label="Used" value={formatBytes(memorySnapshot.usedBytes, 2)} detail={`${memorySnapshot.usedPercent}% of total`} tone="blue" icon={<Database size={16} />} />
         <SystemSummary label="Available" value={formatBytes(memorySnapshot.availableBytes, 2)} detail="Ready for workloads" tone="green" icon={<Database size={16} />} />
         <SystemSummary label="Total" value={formatBytes(memorySnapshot.totalBytes, 2)} detail={processSummaryDetail(memorySnapshot)} tone="purple" icon={<Database size={16} />} />
       </section>}
