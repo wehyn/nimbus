@@ -86,7 +86,7 @@ test("refreshes the open application details when Docker discovery completes", a
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 10, statusCode: 200 } }));
 
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Discovered service" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Discovered service" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Application management" })).toBeVisible();
   await page.getByRole("button", { name: "Application management" }).click();
   await page.getByRole("button", { name: "Edit Discovered service" }).click();

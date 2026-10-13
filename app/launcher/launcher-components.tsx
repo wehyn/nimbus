@@ -28,18 +28,21 @@ export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings }:
   </nav>;
 });
 
-export function SystemMetric({ icon, label, value, progress, tone, onOpen, loading = false }: { icon: ReactNode; label: string; value: string; progress?: number; tone: "green" | "blue" | "orange"; onOpen?: () => void; loading?: boolean }) {
+export function SystemMetric({ icon, label, value, progress, tone, onOpen, loading = false, accessibilityLabel }: { icon: ReactNode; label: string; value: string; progress?: number; tone: "green" | "blue" | "orange"; onOpen?: () => void; loading?: boolean; accessibilityLabel?: string }) {
   const clamped = progress === undefined ? 0 : Math.min(100, Math.max(0, progress));
+  const metricLabel = accessibilityLabel || label;
   const content = <>
     <span className={`system-metric-icon ${tone}`}>{icon}</span>
     <span className="system-metric-label">{label}</span>
     <strong className="system-metric-value">{value}</strong>
-    <span className="system-meter" role="progressbar" aria-label={`${label} usage`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress === undefined ? undefined : Math.round(clamped)}>
-      <span className={`system-meter-fill ${tone}`} style={{ width: `${clamped}%` }} />
-    </span>
   </>;
 
-  return onOpen
-    ? <button type="button" className="system-metric system-metric-bar system-metric-link" onClick={onOpen} aria-label={`View ${label.toLowerCase()} details`} aria-busy={loading}>{content}</button>
-    : <div className="system-metric system-metric-bar" aria-busy={loading}>{content}</div>;
+  return <div className="system-metric" aria-busy={loading}>
+    {onOpen
+      ? <button type="button" className="system-metric-bar system-metric-link" onClick={onOpen} aria-label={`View ${metricLabel.toLowerCase()} details`}>{content}</button>
+      : <div className="system-metric-bar">{content}</div>}
+    <span className="system-meter" role="progressbar" aria-label={`${metricLabel} usage`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress === undefined ? undefined : Math.round(clamped)}>
+      <span className={`system-meter-fill ${tone}`} style={{ width: `${clamped}%` }} />
+    </span>
+  </div>;
 }

@@ -106,7 +106,7 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
         <section className="launcher-system" aria-label="System overview">
           <div className="system-card" aria-busy={overviewRefreshing}>
             <article className="system-summary-card processor-card">
-              <SystemMetric icon={<Cpu size={19} />} label="Processor" value={cpuValue} progress={overview?.cpu} tone="green" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
+              <SystemMetric icon={<Cpu size={19} />} label="Processor" accessibilityLabel="CPU" value={cpuValue} progress={overview?.cpu} tone="green" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
               <div className="processor-telemetry" role="group" aria-label="Processor readings">
                 <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={13} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
                 <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={13} aria-hidden="true" /><strong>{powerValue}</strong></span>

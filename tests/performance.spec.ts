@@ -90,7 +90,7 @@ test("isolates application renders from clock and overview updates", async ({ pa
     await cdp.send("Profiler.enable");
     await cdp.send("Profiler.startPreciseCoverage", { callCount: true, detailed: true });
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Demo service" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Demo service" })).toBeVisible();
     await page.getByRole("button", { name: "Application management" }).click();
     await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
 
@@ -131,7 +131,7 @@ test("isolates application renders from clock and overview updates", async ({ pa
       await installFixtures(page);
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await expect(page.locator("main.launcher")).toBeVisible();
-      await expect(page.getByRole("link", { name: "Demo service" })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Demo service" })).toBeVisible({ timeout: 15_000 });
       await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).resolves.toBeTruthy();
     });
   }
