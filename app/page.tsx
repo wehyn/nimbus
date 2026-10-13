@@ -6,9 +6,7 @@ import { Check, RefreshCw, TriangleAlert } from "lucide-react";
 import type { ActivityEvent, AppStatus, ManagedApp } from "@/lib/types";
 import { ApplicationGrid } from "@/app/launcher/application-grid";
 import { SystemOverview } from "@/app/launcher/system-overview";
-import { nextAppSortOrder } from "@/lib/app-order";
 import { SettingsPanel } from "@/app/launcher/settings-panel";
-import { blankApp } from "@/app/launcher/utils";
 import { fetchHealthStatus } from "@/lib/health-client";
 import { mapWithConcurrency } from "@/lib/async-work";
 import { applyHealthResults, hasHealthStatusTransition } from "@/lib/health-results";
@@ -301,14 +299,14 @@ export default function Home() {
     }
   }
 
-  const addApplication = useCallback(() => openSettings(blankApp(nextAppSortOrder(apps))), [apps, openSettings]);
   const openSettingsPanel = useCallback(() => openSettings(null), [openSettings]);
   const retryApps = useCallback(() => void loadApps(), [loadApps]);
   const refreshActivity = useCallback(() => void refreshActivities(), [refreshActivities]);
 
   return <>
     <SystemOverview
-      children={<ApplicationGrid apps={apps} appsLoading={appsLoading} appsError={appsError} reducedMotion={reducedMotion} onAdd={addApplication} onRetry={retryApps} />}
+      apps={apps}
+      children={<ApplicationGrid apps={apps} appsLoading={appsLoading} appsError={appsError} reducedMotion={reducedMotion} onRetry={retryApps} />}
       healthRefreshing={refreshing}
       settingsOpen={settingsOpen}
       onRefreshHealth={refreshHealth}
