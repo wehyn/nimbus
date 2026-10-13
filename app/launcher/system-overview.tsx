@@ -3,13 +3,14 @@
 import { memo, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ArrowDown, ArrowUp, Cpu, Database, HardDrive, RefreshCw, Settings2, Thermometer, Zap } from "lucide-react";
-import type { ServerOverview } from "@/lib/types";
+import type { ManagedApp, ServerOverview } from "@/lib/types";
 import SystemDetailsModal, { type SystemDetailKind } from "@/app/system-details-modal";
 import { LauncherClock } from "@/app/launcher/launcher-clock";
-import { SystemMetric } from "@/app/launcher/launcher-components";
+import { LauncherDock, SystemMetric } from "@/app/launcher/launcher-components";
 import { formatNetworkRate, formatPercent, formatPower, formatTemperature } from "@/app/launcher/utils";
 
 type SystemOverviewProps = {
+  apps: ManagedApp[];
   children: ReactNode;
   healthRefreshing: boolean;
   settingsOpen: boolean;
@@ -19,7 +20,7 @@ type SystemOverviewProps = {
   refreshOverviewRef: MutableRefObject<(() => Promise<void>) | null>;
 };
 
-function SystemOverviewComponent({ children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onModalOpenChange, refreshOverviewRef }: SystemOverviewProps) {
+function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onModalOpenChange, refreshOverviewRef }: SystemOverviewProps) {
   const [overview, setOverview] = useState<ServerOverview | null>(null);
   const [overviewRefreshing, setOverviewRefreshing] = useState(true);
   const [overviewError, setOverviewError] = useState("");
@@ -91,35 +92,45 @@ function SystemOverviewComponent({ children, healthRefreshing, settingsOpen, onR
   const uploadValue = overview ? formatNetworkRate(overview.uploadBytesPerSecond) : "—";
   const temperatureValue = overview ? formatTemperature(overview.temperatureC) : "—";
   const powerValue = overview ? formatPower(overview.powerWatts) : "—";
+  const maxNetworkRate = Math.max(overview?.downloadBytesPerSecond || 0, overview?.uploadBytesPerSecond || 0, 1);
+  const downloadWidth = (overview?.downloadBytesPerSecond || 0) / maxNetworkRate * 100;
+  const uploadWidth = (overview?.uploadBytesPerSecond || 0) / maxNetworkRate * 100;
 
   return <>
-    <main className="launcher">
+    <main className="launcher" id="overview">
       <header className="launcher-bar">
-        <LauncherClock />
-        <div className="launcher-actions"><span className="launcher-uptime" role="status" aria-label={`System uptime: ${overview?.uptime || "—"}`}>{overview?.uptime || "—"}</span><button type="button" className="launcher-icon-button" onClick={() => { void refreshOverview(); void onRefreshHealth(); }} title={overviewError ? "Retry system metrics" : "Refresh metrics and service health"} aria-label={overviewError ? "Retry system metrics" : "Refresh metrics and service health"}><RefreshCw size={22} className={healthRefreshing || overviewRefreshing ? "spin" : ""} /></button><button type="button" className="launcher-icon-button" onClick={onOpenSettings} aria-label="Application management" title="Application management"><Settings2 size={22} /></button></div>
+        <div className="launcher-brand"><a className="launcher-brand-name" href="#overview" aria-label="Nimbus overview"><span className="launcher-brand-mark" aria-hidden="true">N</span><strong>Nimbus</strong></a><nav className="launcher-nav" aria-label="Main navigation"><a href="#overview">Overview</a><a href="#services">Services</a></nav></div>
+        <div className="launcher-actions"><span className="launcher-local"><i aria-hidden="true" />Local</span><LauncherClock /><span className="launcher-uptime" role="status" aria-label={`System uptime: ${overview?.uptime || "—"}`}>{overview?.uptime || "—"}</span><button type="button" className="launcher-icon-button" onClick={() => { void refreshOverview(); void onRefreshHealth(); }} title={overviewError ? "Retry system metrics" : "Refresh metrics and service health"} aria-label={overviewError ? "Retry system metrics" : "Refresh metrics and service health"}><RefreshCw size={17} className={healthRefreshing || overviewRefreshing ? "spin" : ""} /></button><button type="button" className="launcher-icon-button" onClick={onOpenSettings} aria-label="Application management" title="Application management"><Settings2 size={17} /></button></div>
       </header>
       <section className="launcher-body">
         <section className="launcher-system" aria-label="System overview">
           <div className="system-card" aria-busy={overviewRefreshing}>
-            <div className="system-ring-grid">
-              <SystemMetric icon={<Cpu size={24} />} label="CPU" value={cpuValue} progress={overview?.cpu} tone="green" variant="ring" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
-              <SystemMetric icon={<Database size={24} />} label="Memory" value={memoryValue} progress={overview?.memory} tone="blue" variant="ring" onOpen={() => openSystemDetails("memory")} loading={overviewRefreshing} />
-            </div>
-            <SystemMetric icon={<HardDrive size={24} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" variant="bar" onOpen={() => openSystemDetails("storage")} loading={overviewRefreshing} />
-            <div className="system-card-meta" role="group" aria-label="System readings">
-              <div className="system-card-meta-group system-card-meta-network">
-                <span className="system-card-meta-item system-card-meta-upload" role="img" aria-label={`Upload rate: ${uploadValue}`}><ArrowUp size={15} aria-hidden="true" /><strong>{uploadValue}</strong></span>
-                <span className="system-card-meta-item system-card-meta-download" role="img" aria-label={`Download rate: ${downloadValue}`}><ArrowDown size={15} aria-hidden="true" /><strong>{downloadValue}</strong></span>
+            <article className="system-summary-card processor-card">
+              <SystemMetric icon={<Cpu size={19} />} label="Processor" accessibilityLabel="CPU" value={cpuValue} progress={overview?.cpu} tone="green" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
+              <div className="processor-telemetry" role="group" aria-label="Processor readings">
+                <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={13} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
+                <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={13} aria-hidden="true" /><strong>{powerValue}</strong></span>
               </div>
-              <div className="system-card-meta-group system-card-meta-thermal">
-                <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={16} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
-                <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={14} aria-hidden="true" /><strong>{powerValue}</strong></span>
+            </article>
+            <article className="system-summary-card">
+              <SystemMetric icon={<Database size={19} />} label="Memory" value={memoryValue} progress={overview?.memory} tone="blue" onOpen={() => openSystemDetails("memory")} loading={overviewRefreshing} />
+            </article>
+            <article className="system-summary-card">
+              <SystemMetric icon={<HardDrive size={19} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" onOpen={() => openSystemDetails("storage")} loading={overviewRefreshing} />
+            </article>
+            <article className="system-summary-card network-summary-card">
+              <div className="metric-head"><span>Network</span><span>Traffic</span></div>
+              <div className="network-values">
+                <span className="system-card-meta-item system-card-meta-download" role="img" aria-label={`Download rate: ${downloadValue}`}><ArrowDown size={13} aria-hidden="true" />{downloadValue}</span>
+                <span className="system-card-meta-item system-card-meta-upload" role="img" aria-label={`Upload rate: ${uploadValue}`}><ArrowUp size={13} aria-hidden="true" />{uploadValue}</span>
               </div>
-            </div>
+              <div className="network-meter" aria-hidden="true"><span><i className="download" style={{ width: `${downloadWidth}%` }} /></span><span><i className="upload" style={{ width: `${uploadWidth}%` }} /></span></div>
+            </article>
           </div>
         </section>
         {children}
       </section>
+      <LauncherDock apps={apps} onOpenSettings={onOpenSettings} />
       <AnimatePresence initial={false}>{systemDetails && <SystemDetailsModal key={systemDetails} kind={systemDetails} overview={systemDetails === "storage" ? overview : null} overviewError={systemDetails === "storage" ? overviewError : ""} onRefreshOverview={systemDetails === "storage" ? refreshOverview : undefined} onClose={closeSystemDetails} />}</AnimatePresence>
     </main>
   </>;

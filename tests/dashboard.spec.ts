@@ -112,8 +112,7 @@ test.describe("dashboard browser regressions", () => {
   ];
 
   for (const scenario of orderScenarios) {
-    for (const addFrom of ["management panel", "launcher tile"] as const) {
-      test(`adds after the maximum ${scenario.label} from the ${addFrom}`, async ({ page }) => {
+    test(`adds after the maximum ${scenario.label} from Settings`, async ({ page }) => {
       const fixtureApps = scenario.orders.map((sortOrder, index) => ({
         ...apps[0],
         id: `fixture-${index}`,
@@ -121,55 +120,50 @@ test.describe("dashboard browser regressions", () => {
         sortOrder,
         isVisible: index !== scenario.orders.length - 1,
       }));
-        let persistedApps = fixtureApps;
-        let postedApp: DashboardApp | null = null;
-        await installDashboardFixtures(page, persistedApps);
-        await page.unroute("**/api/apps");
-        await page.route("**/api/apps", async (route) => {
-          if (route.request().method() === "GET") return route.fulfill({ json: { apps: persistedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
-          if (route.request().method() === "DELETE") {
-            persistedApps = persistedApps.filter((app) => app.id !== (route.request().postDataJSON() as { id: string }).id);
-            return route.fulfill({ json: { ok: true } });
-          }
-          postedApp = route.request().postDataJSON() as DashboardApp;
-          persistedApps = [...persistedApps, postedApp];
-          return route.fulfill({ json: { app: postedApp } });
-        });
-        await page.goto("/");
-        await page.getByRole("button", { name: "Application management" }).click();
-        await page.getByRole("button", { name: "Edit Delete me" }).click();
-        page.on("dialog", (dialog) => dialog.accept());
-        await page.getByRole("button", { name: "Delete", exact: false }).click();
-        await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
-
-        if (addFrom === "launcher tile") {
-          await page.getByRole("button", { name: "Close application modal" }).click();
-          await page.getByRole("button", { name: "Add application" }).click();
-        } else {
-          await page.getByRole("button", { name: "Add", exact: true }).click();
+      let persistedApps = fixtureApps;
+      let postedApp: DashboardApp | null = null;
+      await installDashboardFixtures(page, persistedApps);
+      await page.unroute("**/api/apps");
+      await page.route("**/api/apps", async (route) => {
+        if (route.request().method() === "GET") return route.fulfill({ json: { apps: persistedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+        if (route.request().method() === "DELETE") {
+          persistedApps = persistedApps.filter((app) => app.id !== (route.request().postDataJSON() as { id: string }).id);
+          return route.fulfill({ json: { ok: true } });
         }
-        const dialog = page.getByRole("dialog", { name: "Application details" });
-        await dialog.getByLabel("Title").fill(`Added via ${addFrom}`);
-        await dialog.getByLabel("Application URL").fill("https://added.invalid");
-        await dialog.getByRole("button", { name: "Save changes" }).click();
-        await expect.poll(() => postedApp?.sortOrder).toBe(scenario.expectedOrder);
-        await expect(page.getByRole("link", { name: `Added via ${addFrom}` })).toBeVisible();
+        postedApp = route.request().postDataJSON() as DashboardApp;
+        persistedApps = [...persistedApps, postedApp];
+        return route.fulfill({ json: { app: postedApp } });
       });
-    }
+      await page.goto("/");
+      await page.getByRole("button", { name: "Application management" }).click();
+      await page.getByRole("button", { name: "Edit Delete me" }).click();
+      page.on("dialog", (dialog) => dialog.accept());
+      await page.getByRole("button", { name: "Delete", exact: false }).click();
+      await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
+
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Application details" });
+      await dialog.getByLabel("Title").fill("Added via Settings");
+      await dialog.getByLabel("Application URL").fill("https://added.invalid");
+      await dialog.getByRole("button", { name: "Save changes" }).click();
+      await expect.poll(() => postedApp?.sortOrder).toBe(scenario.expectedOrder);
+      await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Added via Settings" })).toBeVisible();
+    });
   }
 
-  test("shows network rates beside temperature and power and lets me switch storage volumes", async ({ page }) => {
+  test("shows network and processor readings in their cards and lets me switch storage volumes", async ({ page }) => {
     const fixtureOverview = { ...overview, temperatureC: 53, powerWatts: 3.28 };
     await installDashboardFixtures(page, apps, [], fixtureOverview);
     await page.goto("/");
 
-    await expect(page.getByRole("progressbar", { name: "CPU usage" })).toBeVisible();
-    await expect(page.getByRole("progressbar", { name: "Memory usage" })).toBeVisible();
-    const readings = page.getByRole("group", { name: "System readings" });
-    await expect(readings.getByRole("img", { name: "Upload rate: 500 KB/s" })).toBeVisible();
-    await expect(readings.getByRole("img", { name: "Download rate: 1.2 MB/s" })).toBeVisible();
-    await expect(readings.getByRole("img", { name: "Temperature: 53°C" })).toBeVisible();
-    await expect(readings.getByRole("img", { name: "Power: 3.28 W" })).toBeVisible();
+    const systemOverview = page.getByRole("region", { name: "System overview" });
+    await expect(systemOverview.getByRole("progressbar", { name: "CPU usage" })).toBeVisible();
+    await expect(systemOverview.getByRole("progressbar", { name: "Memory usage" })).toBeVisible();
+    await expect(systemOverview.getByRole("img", { name: "Upload rate: 500 KB/s" })).toBeVisible();
+    await expect(systemOverview.getByRole("img", { name: "Download rate: 1.2 MB/s" })).toBeVisible();
+    const processorReadings = systemOverview.getByRole("group", { name: "Processor readings" });
+    await expect(processorReadings.getByRole("img", { name: "Temperature: 53°C" })).toBeVisible();
+    await expect(processorReadings.getByRole("img", { name: "Power: 3.28 W" })).toBeVisible();
 
     const storageTrigger = page.getByRole("button", { name: "View storage details" });
     await storageTrigger.click();
@@ -364,7 +358,7 @@ test.describe("dashboard browser regressions", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator("main.launcher")).toBeVisible();
     await appsResponsePromise;
-    await expect(page.getByRole("link", { name: "Demo service" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Demo service" })).toBeVisible();
     await expect.poll(() => apiRequests.filter((path) => path === "/api/apps").length).toBe(1);
     await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).resolves.toBeTruthy();
     expect(apiRequests.filter((path) => path === "/api/health").length).toBeLessThanOrEqual(1);
@@ -380,7 +374,7 @@ test.describe("dashboard browser regressions", () => {
     const appsResponsePromise = page.waitForResponse((response) => response.url().includes("/api/apps") && response.request().method() === "GET");
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await appsResponsePromise;
-    await expect(page.getByRole("link", { name: "Demo service" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Demo service" })).toBeVisible();
     await expect.poll(() => healthRequests).toBeGreaterThan(0);
     const initialRequests = healthRequests;
     await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }));

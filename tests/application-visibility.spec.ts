@@ -38,7 +38,8 @@ test("a hidden application stays manageable and can be restored to the launcher"
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 20, statusCode: 200 } }));
 
   await page.goto("/");
-  await expect(page.getByRole("link", { name: /Visibility demo/ })).toBeVisible();
+  const applicationGrid = page.getByRole("region", { name: "Applications" });
+  await expect(applicationGrid.getByRole("link", { name: /Visibility demo/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Application management" }).click();
   await page.getByRole("button", { name: "Edit Visibility demo" }).click();
@@ -47,7 +48,7 @@ test("a hidden application stays manageable and can be restored to the launcher"
   await visibility.click();
   await expect(visibility).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("link", { name: /Visibility demo/ })).toHaveCount(0);
+  await expect(applicationGrid.getByRole("link", { name: /Visibility demo/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Application management" })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit Visibility demo" }).click();
@@ -56,7 +57,7 @@ test("a hidden application stays manageable and can be restored to the launcher"
   await hiddenVisibility.click();
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByRole("link", { name: /Visibility demo/ })).toBeVisible();
+  await expect(applicationGrid.getByRole("link", { name: /Visibility demo/ })).toBeVisible();
   await expect.poll(() => savedVisibility).toEqual([false, true]);
   await expect(page.getByRole("button", { name: "Edit Visibility demo" })).toBeVisible();
 });
