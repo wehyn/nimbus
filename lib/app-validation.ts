@@ -69,7 +69,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isWebUrl(value: string) {
+export function isWebUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;

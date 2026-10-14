@@ -1,6 +1,7 @@
-import { resolveAppLaunchUrl } from "@/lib/app-url";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { memo, useEffect, useState } from "react";
+import { encodeAppRouteId } from "@/lib/app-url";
 import type { ManagedApp } from "@/lib/types";
 import { Home, Settings2 } from "lucide-react";
 import { AppIcon } from "./icons";
@@ -8,13 +9,11 @@ import { ReorderableApp } from "./reorderable-app";
 import { statusCopy } from "./utils";
 
 export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedApp }) {
-  const launchUrl = resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname);
-
-  return <a key={`${app.id}:${launchUrl}`} className="launcher-tile" href={launchUrl} target="_blank" rel="noreferrer" aria-label={`${app.name} · ${statusCopy[app.status]}`} title={`${app.name} · ${statusCopy[app.status]}`}>
+  return <Link className="launcher-tile" href={`/apps/app-${encodeAppRouteId(app.id)}`} aria-label={`${app.name} · ${statusCopy[app.status]}`} title={`${app.name} · ${statusCopy[app.status]}`}>
     <span className="launcher-iconwrap"><AppIcon app={app} large /></span>
     <span className="launcher-app-name">{app.name}</span>
     <span className={`launcher-app-status ${app.status}`}><i aria-hidden="true" />{statusCopy[app.status]}</span>
-  </a>;
+  </Link>;
 });
 
 export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings, onReorderApps, reorderingApps }: { apps: ManagedApp[]; onOpenSettings: () => void; onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>; reorderingApps: boolean }) {
@@ -41,7 +40,7 @@ export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings, o
   return <nav className="launcher-dock" aria-label="Quick launch">
     <a className="dock-icon" href="#overview" aria-label="Overview" title="Overview"><Home size={18} aria-hidden="true" /></a>
     <span className="dock-divider" aria-hidden="true" />
-    {dockApps.map((app) => <ReorderableApp key={app.id} appId={app.id} appName={app.name} orderedIds={orderedIds} surface="dock" disabled={reorderingApps} onReorder={onReorderApps} onAnnounce={announceReorder} onFocusOut={setPendingFocusId}><a className="dock-icon" href={resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname)} target="_blank" rel="noreferrer" aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></a></ReorderableApp>)}
+    {dockApps.map((app) => <ReorderableApp key={app.id} appId={app.id} appName={app.name} orderedIds={orderedIds} surface="dock" disabled={reorderingApps} onReorder={onReorderApps} onAnnounce={announceReorder} onFocusOut={setPendingFocusId}><Link className="dock-icon" href={`/apps/app-${encodeAppRouteId(app.id)}`} aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></Link></ReorderableApp>)}
     <span className="dock-divider" aria-hidden="true" />
     <button type="button" className="dock-icon" onClick={onOpenSettings} aria-label="Settings" title="Settings"><Settings2 size={17} aria-hidden="true" /></button>
     <span className="visually-hidden" role="status" aria-live="polite">{reorderAnnouncement}</span>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseManagedAppPayload } from "./app-validation.ts";
+import { isWebUrl, parseManagedAppPayload } from "./app-validation.ts";
 import { toDatabaseRow } from "./db-row.ts";
 
 const validApp = {
@@ -18,6 +18,15 @@ const validApp = {
   isVisible: true,
   sortOrder: 0,
 };
+
+test("accepts HTTP(S) URLs without credentials and rejects unsafe or malformed URLs", () => {
+  for (const value of ["http://example.com", "https://example.com/path?q=1"]) {
+    assert.equal(isWebUrl(value), true);
+  }
+  for (const value of ["file:///tmp/demo", "not a URL", "https://user:pass@example.com"]) {
+    assert.equal(isWebUrl(value), false);
+  }
+});
 
 test("rejects malformed application mutation payloads before database access", () => {
   for (const value of [null, [], {}, { id: "demo", name: "Demo", url: "http://demo.local" }, { ...validApp, sortOrder: NaN }]) {

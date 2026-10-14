@@ -2,6 +2,19 @@ import type { ManagedApp } from "./types";
 
 export type AppUrlProtocol = "http" | "https";
 
+export function encodeAppRouteId(appId: string) {
+  let encoded = "";
+  for (let index = 0; index < appId.length; index++) encoded += appId.charCodeAt(index).toString(16).padStart(4, "0");
+  return encoded;
+}
+
+export function decodeAppRouteId(encoded: string) {
+  if (!encoded || encoded.length % 4 !== 0 || !/^[0-9a-f]+$/.test(encoded)) return undefined;
+  let appId = "";
+  for (let index = 0; index < encoded.length; index += 4) appId += String.fromCharCode(Number.parseInt(encoded.slice(index, index + 4), 16));
+  return appId;
+}
+
 export function isHostLocalService(app: Pick<ManagedApp, "dockerDetails" | "containerId" | "dockerProject" | "dockerService">) {
   return Boolean(app.dockerDetails || app.containerId || app.dockerProject || app.dockerService);
 }

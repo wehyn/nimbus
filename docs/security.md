@@ -30,6 +30,15 @@ SSRF boundary:
 The icon route also makes bounded requests to configured service URLs and must receive the same
 security review when its behavior changes.
 
+## In-dashboard app viewer
+
+The dynamic `/apps/[id]` route looks up an app in the server-side registry; the browser resolves and
+validates that record's URL before loading it directly in an iframe. Nimbus does not server-fetch or
+proxy app URLs, path-proxy apps onto its origin, or rewrite frame headers. Each app's own
+`X-Frame-Options` or Content Security Policy controls whether it can be framed. The browser handles
+TLS, and embedded cookie or login behavior remains subject to browser and app restrictions. Keep the
+external link visible so users can open the app directly if framing or embedded sign-in fails.
+
 ## Docker access
 
 `DOCKER_SOCKET` is opt-in through `docker-compose.docker.yml`. The default Compose file keeps the

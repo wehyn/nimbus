@@ -29,3 +29,26 @@ test("identifies only host-local application records", () => {
   assert.equal(isHostLocalService(dockerApp), true);
   assert.equal(isHostLocalService({ dockerDetails: undefined, containerId: undefined, dockerProject: undefined, dockerService: undefined }), false);
 });
+
+test("round-trips arbitrary app IDs through safe route tokens", async () => {
+  const routeCodec = await import("./app-url.ts") as unknown as {
+    encodeAppRouteId?: (id: string) => string;
+    decodeAppRouteId?: (token: string) => string | undefined;
+  };
+  for (const [id, token] of [
+    [".", "002e"],
+    ["..", "002e002e"],
+    ["other/a b", "006f0074006800650072002f006100200062"],
+    ["📷", "d83ddcf7"],
+  ]) {
+    assert.equal(routeCodec.encodeAppRouteId?.(id), token);
+    assert.equal(routeCodec.decodeAppRouteId?.(token), id);
+  }
+});
+
+test("rejects malformed app route tokens", async () => {
+  const routeCodec = await import("./app-url.ts") as unknown as {
+    decodeAppRouteId?: (token: string) => string | undefined;
+  };
+  for (const token of ["", "2e", "zzzz", "002e/", "002E"]) assert.equal(routeCodec.decodeAppRouteId?.(token), undefined);
+});

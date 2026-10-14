@@ -457,3 +457,21 @@ h1, h2, h3, p { margin: 0; }
   .metrics-history-controls button { min-width: 32px; padding-left: 5px; padding-right: 5px; }
   .metrics-chart-wrap { margin-top: 14px; }
 }
+
+.app-viewer { display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); color: var(--text); }
+.app-viewer-toolbar { z-index: 1; display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; gap: 14px; min-height: 48px; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) 8px calc(20px + env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); background: var(--panel); }
+.app-viewer-brand { display: flex; flex: 1 1 auto; align-items: center; gap: 14px; min-width: 0; }
+.app-viewer-back { display: inline-flex; flex: 0 0 auto; align-items: center; color: var(--accent); }
+.app-viewer-title { min-width: 0; overflow: hidden; color: var(--text); font-size: 14px; font-weight: 700; letter-spacing: -.3px; text-overflow: ellipsis; white-space: nowrap; }
+.app-viewer-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.app-viewer-action { display: inline-flex; width: 32px; min-width: 32px; height: 32px; min-height: 32px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); }
+.app-viewer-action:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 52%, transparent); background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.app-viewer-action:disabled { cursor: wait; opacity: .55; }
+.app-viewer-frame { display: block; flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; border: 0; background: #fff; }
+.app-viewer-state { display: grid; flex: 1 1 auto; min-width: 0; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+@media (max-width: 640px) {
+  .app-viewer-toolbar { gap: 8px; padding: calc(6px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) 6px calc(14px + env(safe-area-inset-left, 0px)); }
+  .app-viewer-brand { gap: 8px; }
+  .app-viewer-title { font-size: 14px; }
+  .app-viewer-actions { gap: 4px; }
+}
