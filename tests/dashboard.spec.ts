@@ -105,6 +105,42 @@ async function installDashboardFixtures(page: import("@playwright/test").Page, f
   } }));
 }
 
+async function installReorderFixtures(page: import("@playwright/test").Page, fixtureApps: DashboardApp[], patchStatus = 200) {
+  const state = { apps: fixtureApps };
+  await installDashboardFixtures(page, state.apps);
+  await page.unroute("**/api/apps");
+  await page.route("**/api/apps", async (route) => {
+    if (route.request().method() === "GET") {
+      const orderedApps = [...state.apps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+      return route.fulfill({ json: { apps: orderedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+    }
+    if (route.request().method() === "PATCH") {
+      if (patchStatus !== 200) return route.fulfill({ status: patchStatus, json: { error: "Unable to save application order." } });
+      const { expectedIds, expectedVisibleIds, orderedIds } = route.request().postDataJSON() as { expectedIds: string[]; expectedVisibleIds: string[]; orderedIds: string[] };
+      const currentApps = [...state.apps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+      const currentIds = currentApps.map((app) => app.id);
+      const currentVisibleIds = currentApps.filter((app) => app.isVisible).map((app) => app.id);
+      if (expectedIds.length !== currentIds.length || expectedIds.some((id, index) => id !== currentIds[index]) || expectedVisibleIds.length !== currentVisibleIds.length || expectedVisibleIds.some((id, index) => id !== currentVisibleIds[index])) return route.fulfill({ status: 409, json: { error: "application order changed; reload and retry" } });
+      const appsById = new Map(state.apps.map((app) => [app.id, app]));
+      state.apps = orderedIds.map((id, sortOrder) => ({ ...appsById.get(id)!, sortOrder }));
+      return route.fulfill({ json: { ok: true, orderedIds } });
+    }
+    return route.fulfill({ status: 400, json: { error: "unsupported application mutation" } });
+  });
+  return state;
+}
+
+async function dragBetween(page: import("@playwright/test").Page, source: import("@playwright/test").Locator, target: import("@playwright/test").Locator) {
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(targetBox).not.toBeNull();
+  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 10 });
+  await page.mouse.up();
+}
+
 test.describe("dashboard browser regressions", () => {
   const orderScenarios = [
     { label: "after a deletion gap", orders: [0, 1, 2], deletedIndex: 1, expectedOrder: 3 },
@@ -138,7 +174,7 @@ test.describe("dashboard browser regressions", () => {
       await page.getByRole("button", { name: "Application management" }).click();
       await page.getByRole("button", { name: "Edit Delete me" }).click();
       page.on("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: "Delete", exact: false }).click();
+      await page.getByRole("dialog", { name: "Application details" }).getByRole("button", { name: "Delete", exact: true }).click();
       await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
 
       await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -150,6 +186,372 @@ test.describe("dashboard browser regressions", () => {
       await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Added via Settings" })).toBeVisible();
     });
   }
+
+  test("keeps app order after editing a reordered application", async ({ page }) => {
+    let persistedApps: DashboardApp[] = [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ];
+    let savedApp: DashboardApp | null = null;
+    await installDashboardFixtures(page, persistedApps);
+    await page.unroute("**/api/apps");
+    await page.route("**/api/apps", async (route) => {
+      const method = route.request().method();
+      if (method === "GET") {
+        const orderedApps = [...persistedApps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+        return route.fulfill({ json: { apps: orderedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+      }
+      if (method === "PATCH") {
+        const orderedIds = (route.request().postDataJSON() as { orderedIds: string[] }).orderedIds;
+        const appsById = new Map(persistedApps.map((app) => [app.id, app]));
+        persistedApps = orderedIds.map((id, sortOrder) => ({ ...appsById.get(id)!, sortOrder }));
+        return route.fulfill({ json: { ok: true, orderedIds } });
+      }
+      if (method === "POST") {
+        savedApp = route.request().postDataJSON() as DashboardApp;
+        persistedApps = persistedApps.map((app) => app.id === savedApp?.id ? savedApp : app);
+        return route.fulfill({ json: { app: savedApp } });
+      }
+      return route.fulfill({ status: 400, json: { error: "unsupported application mutation" } });
+    });
+
+    await page.goto("/");
+    await page.getByRole("region", { name: "Applications" }).getByRole("button", { name: "Reorder application" }).first().press("ArrowDown");
+    await expect.poll(() => [...persistedApps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name)).map((app) => app.id)).toEqual(["beta", "alpha"]);
+
+    await page.getByRole("button", { name: "Application management" }).click();
+    await page.getByRole("button", { name: "Edit Alpha" }).click();
+    const dialog = page.getByRole("dialog", { name: "Application details" });
+    await dialog.getByLabel("Description").fill("Edited after reorder");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => savedApp?.sortOrder).toBe(1);
+    await expect.poll(() => page.locator(".launcher-grid [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+  });
+
+  test("reorders applications by dragging between the grid and dock", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ]);
+
+    await page.goto("/");
+    const gridSource = page.locator('.launcher-grid [data-reorder-id="alpha"] .app-reorder-handle');
+    const dockTargetHandle = page.locator('.launcher-dock [data-reorder-id="beta"] .app-reorder-handle');
+    await dragBetween(page, gridSource, dockTargetHandle);
+
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
+    await expect.poll(() => page.locator(".launcher-grid [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+    await expect.poll(() => page.locator(".launcher-dock [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+    await expect.poll(() => page.locator('.launcher-grid [data-reorder-id="alpha"]').evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+
+  });
+
+  test("does not reorder an app when a drag ends inside its original tile", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+      { ...apps[0], id: "gamma", name: "Gamma", sortOrder: 2 },
+    ]);
+
+    await page.goto("/");
+    const handle = page.locator('.launcher-grid [data-reorder-id="beta"] .app-reorder-handle');
+    const tile = page.locator('.launcher-grid [data-reorder-id="beta"]');
+    const bounds = await handle.boundingBox();
+    expect(bounds).not.toBeNull();
+    const x = bounds!.x + bounds!.width / 2;
+    const y = bounds!.y + bounds!.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 6, y, { steps: 2 });
+    await expect.poll(() => tile.evaluate((element) => getComputedStyle(element).transform)).not.toBe("none");
+    await page.mouse.up();
+
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["alpha", "beta", "gamma"]);
+  });
+
+  for (const surface of ["grid", "dock"] as const) {
+    test(`uses empty ${surface} space as a drop target`, async ({ page }) => {
+      const fixtureState = await installReorderFixtures(page, Array.from({ length: 6 }, (_, index) => ({
+        ...apps[0],
+        id: `app-${index}`,
+        name: `App ${index + 1}`,
+        sortOrder: index,
+      })));
+
+      await page.goto("/");
+      const containerSelector = surface === "grid" ? ".launcher-grid" : ".launcher-dock";
+      const container = page.locator(containerSelector);
+      const bounds = await container.boundingBox();
+      expect(bounds).not.toBeNull();
+      const point = surface === "grid"
+        ? await container.locator("[data-reorder-id]").evaluateAll((elements) => {
+          const first = elements[0].getBoundingClientRect();
+          const second = elements[1].getBoundingClientRect();
+          return { x: (first.right + second.left) / 2, y: first.top + first.height / 2 };
+        })
+        : { x: bounds!.x + 2, y: bounds!.y + bounds!.height / 2 };
+      const hit = await page.evaluate(({ x, y, surface }) => {
+        const element = document.elementFromPoint(x, y);
+        return { inSurface: Boolean(element?.closest(surface === "grid" ? ".launcher-grid" : ".launcher-dock")), appId: element?.closest<HTMLElement>("[data-reorder-id]")?.dataset.reorderId ?? null };
+      }, { ...point, surface });
+      expect(hit).toEqual({ inSurface: true, appId: null });
+
+      const source = page.locator(surface === "dock"
+        ? '.launcher-grid [data-reorder-id="app-4"] .app-reorder-handle'
+        : '.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+      const sourceBounds = await source.boundingBox();
+      expect(sourceBounds).not.toBeNull();
+      await page.mouse.move(sourceBounds!.x + sourceBounds!.width / 2, sourceBounds!.y + sourceBounds!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(point.x, point.y, { steps: 10 });
+      await page.mouse.up();
+
+      const expectedOrder = surface === "grid"
+        ? ["app-0", "app-1", "app-2", "app-4", "app-5", "app-3"]
+        : ["app-0", "app-1", "app-2", "app-4", "app-3", "app-5"];
+      await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(expectedOrder);
+    });
+  }
+
+  test("labels each reorder handle with its application", async ({ page }) => {
+    await installReorderFixtures(page, [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ]);
+
+    await page.goto("/");
+    await expect(page.locator('.launcher-grid [data-reorder-id="alpha"] .app-reorder-handle')).toHaveAccessibleName("Reorder application Alpha");
+    await expect(page.locator('.launcher-dock [data-reorder-id="alpha"] .app-reorder-handle')).toHaveAccessibleName("Reorder application Alpha");
+  });
+
+  for (const surface of ["grid", "dock"] as const) {
+    test(`reorders a later app before an earlier app in the ${surface}`, async ({ page }) => {
+      const fixtureState = await installReorderFixtures(page, [
+        { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+        { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+      ]);
+
+      await page.goto("/");
+      const containerSelector = surface === "grid" ? ".launcher-grid" : ".launcher-dock";
+      await dragBetween(
+        page,
+        page.locator(`${containerSelector} [data-reorder-id="beta"] .app-reorder-handle`),
+        page.locator(`${containerSelector} [data-reorder-id="alpha"] .app-reorder-handle`),
+      );
+
+      await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
+      await expect.poll(() => page.locator(`${containerSelector} [data-reorder-id]`).evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+    });
+  }
+
+  test("moves focus into the grid when a dock app is dragged out of the dock", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, Array.from({ length: 5 }, (_, index) => ({
+      ...apps[0],
+      id: `app-${index}`,
+      name: `App ${index + 1}`,
+      sortOrder: index,
+    })));
+
+    await page.goto("/");
+    const dockHandle = page.locator('.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+    await dockHandle.focus();
+    await dragBetween(page, dockHandle, page.locator('.launcher-grid [data-reorder-id="app-4"] .app-reorder-handle'));
+
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-4", "app-3"]);
+    await expect(page.locator('.launcher-grid [data-reorder-id="app-3"] .app-reorder-handle')).toBeFocused();
+  });
+
+  test("starts touch reordering only after a long press", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ]);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const session = await page.context().newCDPSession(page);
+    await session.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await page.goto("/");
+    const alphaHandle = page.locator('.launcher-grid [data-reorder-id="alpha"] .app-reorder-handle');
+    const betaHandle = page.locator('.launcher-grid [data-reorder-id="beta"] .app-reorder-handle');
+    const source = await alphaHandle.boundingBox();
+    const target = await betaHandle.boundingBox();
+    expect(source).not.toBeNull();
+    expect(target).not.toBeNull();
+
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: source!.x + source!.width / 2, y: source!.y + source!.height / 2, id: 1 }] });
+    await page.waitForTimeout(100);
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    expect(fixtureState.apps.map((app) => app.id)).toEqual(["alpha", "beta"]);
+
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: source!.x + source!.width / 2, y: source!.y + source!.height / 2, id: 1 }] });
+    await page.waitForTimeout(400);
+    await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: target!.x + target!.width / 2, y: target!.y + target!.height / 2, id: 1 }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
+  });
+
+  test("opens system details from every KPI card surface on desktop and mobile", async ({ page }) => {
+    await installDashboardFixtures(page);
+    await page.goto("/");
+
+    const systemOverview = page.getByRole("region", { name: "System overview" });
+    const cards = [
+      { index: 0, title: "Processor", trigger: "View cpu details" },
+      { index: 1, title: "Memory", trigger: "View memory details" },
+      { index: 2, title: "Storage", trigger: "View storage details" },
+    ];
+
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const card of cards) {
+        const bounds = await systemOverview.locator(".system-summary-card").nth(card.index).boundingBox();
+        expect(bounds).not.toBeNull();
+        await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height - 8);
+
+        const dialog = page.getByRole("dialog", { name: card.title });
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(dialog).toHaveCount(0);
+        await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe(card.trigger);
+      }
+    }
+  });
+
+  test("keeps focus and announces when keyboard reordering moves an app out of the dock", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, Array.from({ length: 5 }, (_, index) => ({
+      ...apps[0],
+      id: `app-${index}`,
+      name: `App ${index + 1}`,
+      sortOrder: index,
+    })));
+
+    await page.goto("/");
+    const dockHandle = page.locator('.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+    await dockHandle.focus();
+    await dockHandle.press("ArrowDown");
+
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-4", "app-3"]);
+    await expect(page.locator('.launcher-grid [data-reorder-id="app-3"] .app-reorder-handle')).toBeFocused();
+    await expect(page.locator(".launcher-dock [role=status]").last()).toHaveText("App 4 moved to position 5 of 5.");
+  });
+
+  test("reannounces an identical dock keyboard move", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, Array.from({ length: 5 }, (_, index) => ({
+      ...apps[0],
+      id: `app-${index}`,
+      name: `App ${index + 1}`,
+      sortOrder: index,
+    })));
+
+    await page.goto("/");
+    const dockStatus = page.locator(".launcher-dock [role=status]").last();
+    const dockHandle = page.locator('.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+    await dockHandle.focus();
+    await dockHandle.press("ArrowDown");
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-4", "app-3"]);
+    await expect(dockStatus).toHaveText("App 4 moved to position 5 of 5.");
+
+    const gridHandle = page.locator('.launcher-grid [data-reorder-id="app-3"] .app-reorder-handle');
+    await gridHandle.focus();
+    await gridHandle.press("ArrowUp");
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-3", "app-4"]);
+
+    await page.evaluate(() => {
+      const liveRegions = document.querySelectorAll(".launcher-dock [role=status]");
+      const liveRegion = liveRegions.item(liveRegions.length - 1);
+      if (!liveRegion) throw new Error("Dock reorder live region is missing");
+      const changes: string[] = [];
+      new MutationObserver(() => changes.push(liveRegion.textContent ?? "")).observe(liveRegion, { childList: true, characterData: true, subtree: true });
+      (window as Window & { __dockAnnouncementChanges?: string[] }).__dockAnnouncementChanges = changes;
+    });
+
+    await dockHandle.focus();
+    await dockHandle.press("ArrowDown");
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-4", "app-3"]);
+    await expect(dockStatus).toHaveText("App 4 moved to position 5 of 5.");
+    await expect.poll(() => page.evaluate(() => (window as Window & { __dockAnnouncementChanges?: string[] }).__dockAnnouncementChanges)).toContain("");
+  });
+
+  test("keeps the dock item focused without announcing a failed keyboard reorder", async ({ page }) => {
+    const fixtureApps = Array.from({ length: 5 }, (_, index) => ({
+      ...apps[0],
+      id: `app-${index}`,
+      name: `App ${index + 1}`,
+      sortOrder: index,
+    }));
+    await installReorderFixtures(page, fixtureApps, 500);
+
+    await page.goto("/");
+    const dockHandle = page.locator('.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+    await dockHandle.focus();
+    await dockHandle.press("ArrowDown");
+
+    await expect.poll(() => page.locator(".launcher-dock [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["app-0", "app-1", "app-2", "app-3"]);
+    await expect(dockHandle).toBeFocused();
+    await expect(page.locator(".launcher-dock [role=status]").last()).toBeEmpty();
+  });
+
+  test("does not let an in-flight app load overwrite a reorder", async ({ page }) => {
+    let persistedApps: DashboardApp[] = [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ];
+    let holdNextGet = false;
+    let notifyStaleGet: () => void = () => undefined;
+    let releaseStaleGet: () => void = () => undefined;
+    const staleGetStarted = new Promise<void>((resolve) => { notifyStaleGet = resolve; });
+    await installDashboardFixtures(page, persistedApps);
+    await page.unroute("**/api/apps");
+    await page.route("**/api/apps", async (route) => {
+      const method = route.request().method();
+      if (method === "GET") {
+        const orderedApps = [...persistedApps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+        if (holdNextGet) {
+          holdNextGet = false;
+          const staleResponse = new Promise<void>((resolve) => { releaseStaleGet = resolve; });
+          notifyStaleGet();
+          await staleResponse;
+        }
+        try {
+          return await route.fulfill({ json: { apps: orderedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+        } catch {
+          return;
+        }
+      }
+      if (method === "POST") {
+        const updatedApp = route.request().postDataJSON() as DashboardApp;
+        persistedApps = persistedApps.map((app) => app.id === updatedApp.id ? updatedApp : app);
+        holdNextGet = true;
+        return route.fulfill({ json: { app: updatedApp } });
+      }
+      if (method === "PATCH") {
+        const orderedIds = (route.request().postDataJSON() as { orderedIds: string[] }).orderedIds;
+        const appsById = new Map(persistedApps.map((app) => [app.id, app]));
+        persistedApps = orderedIds.map((id, sortOrder) => ({ ...appsById.get(id)!, sortOrder }));
+        return route.fulfill({ json: { ok: true, orderedIds } });
+      }
+      return route.fulfill({ status: 400, json: { error: "unsupported application mutation" } });
+    });
+
+    try {
+      await page.goto("/");
+      await page.getByRole("button", { name: "Application management" }).click();
+      await page.getByRole("button", { name: "Edit Alpha" }).click();
+      const dialog = page.getByRole("dialog", { name: "Application details" });
+      await dialog.getByLabel("Description").fill("Edited before reorder");
+      await dialog.getByRole("button", { name: "Save changes" }).click();
+      await staleGetStarted;
+      await page.getByRole("button", { name: "Close application modal" }).click();
+      await page.getByRole("navigation", { name: "Quick launch" }).getByRole("button", { name: "Reorder application" }).first().press("ArrowDown");
+      await expect.poll(() => persistedApps.map((app) => app.id)).toEqual(["beta", "alpha"]);
+      releaseStaleGet();
+      await expect.poll(() => page.locator(".launcher-dock [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+    } finally {
+      releaseStaleGet();
+    }
+  });
 
   test("shows network and processor readings in their cards and lets me switch storage volumes", async ({ page }) => {
     const fixtureOverview = { ...overview, temperatureC: 53, powerWatts: 3.28 };
@@ -165,8 +567,14 @@ test.describe("dashboard browser regressions", () => {
     await expect(processorReadings.getByRole("img", { name: "Temperature: 53°C" })).toBeVisible();
     await expect(processorReadings.getByRole("img", { name: "Power: 3.28 W" })).toBeVisible();
 
+    const memoryTrigger = page.getByRole("button", { name: "View memory details" });
+    await memoryTrigger.click();
+    await expect(page.getByRole("dialog", { name: "Memory" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(memoryTrigger).toBeFocused();
+
     const storageTrigger = page.getByRole("button", { name: "View storage details" });
-    await storageTrigger.click();
+    await storageTrigger.dispatchEvent("click");
     const dialog = page.getByRole("dialog", { name: "Storage" });
     await expect(dialog).toBeVisible();
     const volumeSelect = dialog.getByRole("combobox", { name: "Storage volume" });

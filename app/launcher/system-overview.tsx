@@ -16,11 +16,13 @@ type SystemOverviewProps = {
   settingsOpen: boolean;
   onRefreshHealth: () => Promise<void>;
   onOpenSettings: () => void;
+  onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>;
+  reorderingApps: boolean;
   onModalOpenChange: (open: boolean) => void;
   refreshOverviewRef: MutableRefObject<(() => Promise<void>) | null>;
 };
 
-function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onModalOpenChange, refreshOverviewRef }: SystemOverviewProps) {
+function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onReorderApps, reorderingApps, onModalOpenChange, refreshOverviewRef }: SystemOverviewProps) {
   const [overview, setOverview] = useState<ServerOverview | null>(null);
   const [overviewRefreshing, setOverviewRefreshing] = useState(true);
   const [overviewError, setOverviewError] = useState("");
@@ -130,7 +132,7 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
         </section>
         {children}
       </section>
-      <LauncherDock apps={apps} onOpenSettings={onOpenSettings} />
+      <LauncherDock apps={apps} onOpenSettings={onOpenSettings} onReorderApps={onReorderApps} reorderingApps={reorderingApps} />
       <AnimatePresence initial={false}>{systemDetails && <SystemDetailsModal key={systemDetails} kind={systemDetails} overview={systemDetails === "storage" ? overview : null} overviewError={systemDetails === "storage" ? overviewError : ""} onRefreshOverview={systemDetails === "storage" ? refreshOverview : undefined} onClose={closeSystemDetails} />}</AnimatePresence>
     </main>
   </>;

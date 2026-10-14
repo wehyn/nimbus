@@ -135,7 +135,36 @@ function fromRow(row: Record<string, unknown>): ManagedApp {
 }
 
 export function listApps() {
-  return (getDatabase().prepare("SELECT * FROM apps ORDER BY sort_order ASC, name ASC").all() as Record<string, unknown>[]).map(fromRow);
+  return (getDatabase().prepare("SELECT * FROM apps ORDER BY sort_order ASC, id ASC").all() as Record<string, unknown>[]).map(fromRow);
+}
+
+export function reorderApps(orderedIds: readonly string[], expectedIds: readonly string[], expectedVisibleIds: readonly string[]) {
+  const database = getDatabase();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const currentApps = database.prepare("SELECT id, is_visible FROM apps ORDER BY sort_order ASC, id ASC").all() as { id: string; is_visible: number }[];
+    const currentIds = currentApps.map((app) => app.id);
+    const currentVisibleIds = currentApps.filter((app) => app.is_visible === 1).map((app) => app.id);
+    if (expectedIds.length !== currentIds.length || expectedIds.some((id, index) => id !== currentIds[index]) || expectedVisibleIds.length !== currentVisibleIds.length || expectedVisibleIds.some((id, index) => id !== currentVisibleIds[index])) {
+      database.exec("ROLLBACK");
+      return false;
+    }
+
+    const existingIds = new Set(currentIds);
+    const requestedIds = new Set(orderedIds);
+    if (requestedIds.size !== orderedIds.length || requestedIds.size !== existingIds.size || [...existingIds].some((id) => !requestedIds.has(id)) || currentApps.some((app, index) => app.is_visible === 0 && orderedIds[index] !== app.id)) {
+      database.exec("ROLLBACK");
+      return false;
+    }
+
+    const update = database.prepare("UPDATE apps SET sort_order = ? WHERE id = ?");
+    orderedIds.forEach((id, sortOrder) => update.run(sortOrder, id));
+    database.exec("COMMIT");
+    return true;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function findApp(id: string) {
@@ -249,24 +278,39 @@ function getCurrentHealthPersistenceSnapshot(database: DatabaseSync, id: string,
 
 export function saveApp(app: ManagedApp) {
   const database = getDatabase();
-  const existing = database.prepare("SELECT id, status, health_generation, docker_project, docker_service FROM apps WHERE id = ?").get(app.id) as {
+  database.exec("BEGIN IMMEDIATE");
+  let existing: {
     id?: string;
     status?: AppStatus;
+    sort_order?: number;
     health_generation?: string | null;
     docker_project?: string | null;
     docker_service?: string | null;
   } | undefined;
-  let persistedApp = existing ? { ...app, status: existing.status || app.status } : app;
-  const healthGeneration = existing && existing.health_generation && existing.health_generation.length > 0
-    ? existing.health_generation
-    : createHealthGeneration();
-  if (existing && (normalizeLinkValue(existing.docker_project) !== normalizeLinkValue(app.dockerProject)
-    || normalizeLinkValue(existing.docker_service) !== normalizeLinkValue(app.dockerService))) {
-    persistedApp = clearDockerMetadata(persistedApp);
+  let persistedApp: ManagedApp;
+  try {
+    existing = database.prepare("SELECT id, status, sort_order, health_generation, docker_project, docker_service FROM apps WHERE id = ?").get(app.id) as typeof existing;
+    if (existing) {
+      persistedApp = { ...app, status: existing.status || app.status, sortOrder: existing.sort_order ?? app.sortOrder };
+    } else {
+      const nextSortOrder = (database.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort_order FROM apps").get() as { next_sort_order: number }).next_sort_order;
+      persistedApp = { ...app, sortOrder: nextSortOrder };
+    }
+    const healthGeneration = existing && existing.health_generation && existing.health_generation.length > 0
+      ? existing.health_generation
+      : createHealthGeneration();
+    if (existing && (normalizeLinkValue(existing.docker_project) !== normalizeLinkValue(app.dockerProject)
+      || normalizeLinkValue(existing.docker_service) !== normalizeLinkValue(app.dockerService))) {
+      persistedApp = clearDockerMetadata(persistedApp);
+    }
+    database.prepare(`INSERT INTO apps (id, name, description, category, url, icon, color, health_url, allow_insecure_tls, status, source, is_visible, sort_order, docker_project, docker_service, container_id, container_name, container_image, container_state, container_health, container_started_at, container_observed_at, casaos_scheme, casaos_hostname, casaos_port_map, casaos_index, health_generation)
+      VALUES (@id, @name, @description, @category, @url, @icon, @color, @healthUrl, @allowInsecureTls, @status, @source, @isVisible, @sortOrder, @dockerProject, @dockerService, @containerId, @containerName, @containerImage, @containerState, @containerHealth, @containerStartedAt, @containerObservedAt, @casaosScheme, @casaosHostname, @casaosPortMap, @casaosIndex, @healthGeneration)
+      ON CONFLICT(id) DO UPDATE SET name=@name, description=@description, category=@category, url=@url, icon=@icon, color=@color, health_url=@healthUrl, allow_insecure_tls=@allowInsecureTls, status=@status, source=@source, is_visible=@isVisible, docker_project=@dockerProject, docker_service=@dockerService, container_id=@containerId, container_name=@containerName, container_image=@containerImage, container_state=@containerState, container_health=@containerHealth, container_started_at=@containerStartedAt, container_observed_at=@containerObservedAt, casaos_scheme=@casaosScheme, casaos_hostname=@casaosHostname, casaos_port_map=@casaosPortMap, casaos_index=@casaosIndex, health_generation=@healthGeneration`).run({ ...toDatabaseRow(persistedApp), healthGeneration });
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
   }
-  database.prepare(`INSERT INTO apps (id, name, description, category, url, icon, color, health_url, allow_insecure_tls, status, source, is_visible, sort_order, docker_project, docker_service, container_id, container_name, container_image, container_state, container_health, container_started_at, container_observed_at, casaos_scheme, casaos_hostname, casaos_port_map, casaos_index, health_generation)
-    VALUES (@id, @name, @description, @category, @url, @icon, @color, @healthUrl, @allowInsecureTls, @status, @source, @isVisible, @sortOrder, @dockerProject, @dockerService, @containerId, @containerName, @containerImage, @containerState, @containerHealth, @containerStartedAt, @containerObservedAt, @casaosScheme, @casaosHostname, @casaosPortMap, @casaosIndex, @healthGeneration)
-    ON CONFLICT(id) DO UPDATE SET name=@name, description=@description, category=@category, url=@url, icon=@icon, color=@color, health_url=@healthUrl, allow_insecure_tls=@allowInsecureTls, status=@status, source=@source, is_visible=@isVisible, sort_order=@sortOrder, docker_project=@dockerProject, docker_service=@dockerService, container_id=@containerId, container_name=@containerName, container_image=@containerImage, container_state=@containerState, container_health=@containerHealth, container_started_at=@containerStartedAt, container_observed_at=@containerObservedAt, casaos_scheme=@casaosScheme, casaos_hostname=@casaosHostname, casaos_port_map=@casaosPortMap, casaos_index=@casaosIndex, health_generation=@healthGeneration`).run({ ...toDatabaseRow(persistedApp), healthGeneration });
   recordActivity(existing ? "app-updated" : "app-created", persistedApp.id, persistedApp.name);
   return persistedApp;
 }

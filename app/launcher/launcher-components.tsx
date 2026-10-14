@@ -1,9 +1,10 @@
 import { resolveAppLaunchUrl } from "@/lib/app-url";
 import type { ReactNode } from "react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import type { ManagedApp } from "@/lib/types";
 import { Home, Settings2 } from "lucide-react";
 import { AppIcon } from "./icons";
+import { ReorderableApp } from "./reorderable-app";
 import { statusCopy } from "./utils";
 
 export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedApp }) {
@@ -16,15 +17,34 @@ export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedAp
   </a>;
 });
 
-export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings }: { apps: ManagedApp[]; onOpenSettings: () => void }) {
-  const dockApps = apps.filter((app) => app.isVisible).slice(0, 4);
+export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings, onReorderApps, reorderingApps }: { apps: ManagedApp[]; onOpenSettings: () => void; onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>; reorderingApps: boolean }) {
+  const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const visibleApps = apps.filter((app) => app.isVisible);
+  const orderedIds = visibleApps.map((app) => app.id);
+  const dockApps = visibleApps.slice(0, 4);
+
+  function announceReorder(message: string) {
+    setReorderAnnouncement("");
+    window.requestAnimationFrame(() => setReorderAnnouncement(message));
+  }
+
+  useEffect(() => {
+    if (!pendingFocusId || visibleApps.findIndex((app) => app.id === pendingFocusId) < 4) return;
+    const gridItem = Array.from(document.querySelectorAll<HTMLElement>(".launcher-grid [data-reorder-id]")).find((item) => item.dataset.reorderId === pendingFocusId);
+    const gridHandle = gridItem?.querySelector<HTMLButtonElement>(".app-reorder-handle");
+    if (!gridHandle) return;
+    gridHandle.focus();
+    setPendingFocusId(null);
+  }, [apps, pendingFocusId, reorderingApps, visibleApps]);
 
   return <nav className="launcher-dock" aria-label="Quick launch">
     <a className="dock-icon" href="#overview" aria-label="Overview" title="Overview"><Home size={18} aria-hidden="true" /></a>
     <span className="dock-divider" aria-hidden="true" />
-    {dockApps.map((app) => <a className="dock-icon" key={app.id} href={resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname)} target="_blank" rel="noreferrer" aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></a>)}
+    {dockApps.map((app) => <ReorderableApp key={app.id} appId={app.id} appName={app.name} orderedIds={orderedIds} surface="dock" disabled={reorderingApps} onReorder={onReorderApps} onAnnounce={announceReorder} onFocusOut={setPendingFocusId}><a className="dock-icon" href={resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname)} target="_blank" rel="noreferrer" aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></a></ReorderableApp>)}
     <span className="dock-divider" aria-hidden="true" />
     <button type="button" className="dock-icon" onClick={onOpenSettings} aria-label="Settings" title="Settings"><Settings2 size={17} aria-hidden="true" /></button>
+    <span className="visually-hidden" role="status" aria-live="polite">{reorderAnnouncement}</span>
   </nav>;
 });
 
@@ -39,7 +59,7 @@ export function SystemMetric({ icon, label, value, progress, tone, onOpen, loadi
 
   return <div className="system-metric" aria-busy={loading}>
     {onOpen
-      ? <button type="button" className="system-metric-bar system-metric-link" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpen?.(); }} aria-label={`View ${metricLabel.toLowerCase()} details`}>{content}</button>
+      ? <button type="button" className="system-metric-bar system-metric-link" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpen(); }} aria-label={`View ${metricLabel.toLowerCase()} details`}>{content}</button>
       : <div className="system-metric-bar">{content}</div>}
     <span className="system-meter" role="progressbar" aria-label={`${metricLabel} usage`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress === undefined ? undefined : Math.round(clamped)}>
       <span className={`system-meter-fill ${tone}`} style={{ width: `${clamped}%` }} />

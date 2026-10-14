@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import type { ManagedApp } from "@/lib/types";
 import { LauncherTile } from "@/app/launcher/launcher-components";
+import { ReorderableApp } from "@/app/launcher/reorderable-app";
 
 type ApplicationGridProps = {
   apps: ManagedApp[];
@@ -12,13 +13,16 @@ type ApplicationGridProps = {
   appsError: string;
   reducedMotion: boolean;
   onRetry: () => void;
+  onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>;
+  reorderingApps: boolean;
 };
 
 const standardTransition = { duration: 0.2, ease: "easeOut" as const };
 const reducedTransition = { duration: 0 };
 
-function ApplicationGridComponent({ apps, appsLoading, appsError, reducedMotion, onRetry }: ApplicationGridProps) {
+function ApplicationGridComponent({ apps, appsLoading, appsError, reducedMotion, onRetry, onReorderApps, reorderingApps }: ApplicationGridProps) {
   const visibleApps = useMemo(() => apps.filter((app) => app.isVisible), [apps]);
+  const orderedIds = useMemo(() => visibleApps.map((app) => app.id), [visibleApps]);
   const transition = reducedMotion ? reducedTransition : standardTransition;
   let launcherContent: React.ReactNode;
   if (appsLoading) {
@@ -26,7 +30,7 @@ function ApplicationGridComponent({ apps, appsLoading, appsError, reducedMotion,
   } else if (appsError) {
     launcherContent = <motion.div key="apps-error" className="empty-state" role="alert" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={transition}><TriangleAlert size={28} aria-hidden="true" /><strong>Applications unavailable</strong><span>{appsError}</span><button type="button" className="small-primary" onClick={onRetry}>Try again</button></motion.div>;
   } else {
-    launcherContent = <motion.div key="app-grid" className={`launcher-grid ${visibleApps.length ? "" : "launcher-grid-empty"}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition}><AnimatePresence initial={false} mode="popLayout">{visibleApps.map((app) => <motion.div key={app.id} className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={transition}><LauncherTile app={app} /></motion.div>)}</AnimatePresence></motion.div>;
+    launcherContent = <motion.div key="app-grid" className={`launcher-grid ${visibleApps.length ? "" : "launcher-grid-empty"}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition}><AnimatePresence initial={false} mode="popLayout">{visibleApps.map((app) => <motion.div key={app.id} className="launcher-tile-wrap" layout initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={transition}><ReorderableApp appId={app.id} appName={app.name} orderedIds={orderedIds} surface="grid" disabled={appsLoading || reorderingApps} onReorder={onReorderApps}><LauncherTile app={app} /></ReorderableApp></motion.div>)}</AnimatePresence></motion.div>;
   }
 
   return <section id="services" className="launcher-apps" aria-label="Applications" aria-busy={appsLoading}><AnimatePresence mode="wait" initial={false}>{launcherContent}</AnimatePresence></section>;

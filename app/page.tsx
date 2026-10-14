@@ -10,6 +10,7 @@ import { SettingsPanel } from "@/app/launcher/settings-panel";
 import { fetchHealthStatus } from "@/lib/health-client";
 import { mapWithConcurrency } from "@/lib/async-work";
 import { applyHealthResults, hasHealthStatusTransition } from "@/lib/health-results";
+import { reorderVisibleAppIds } from "@/lib/app-order";
 
 function OfflineBanner({ onRetry }: { onRetry: () => void }) {
   return <div className="offline-banner" role="status" aria-live="polite"><TriangleAlert size={16} aria-hidden="true" /><span>You’re offline. Showing the last successful data.</span><button type="button" className="small-primary" onClick={onRetry}>Retry</button></div>;
@@ -30,6 +31,7 @@ export default function Home() {
   const motionTransition = reducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" as const };
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reorderingApps, setReorderingApps] = useState(false);
   const [mutationError, setMutationError] = useState("");
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const activeHealthRefreshesRef = useRef(0);
@@ -42,6 +44,7 @@ export default function Home() {
   const appsLoadVersionRef = useRef(0);
   const appsDiscoveryRetryTimeoutRef = useRef<number | null>(null);
   const savedNoticeTimeoutRef = useRef<number | null>(null);
+  const reorderingAppsRef = useRef(false);
   const settingsTriggerRef = useRef<HTMLElement | null>(null);
   const appsRef = useRef(apps);
   const loadAppsRef = useRef<((discoveryRetry?: number) => void) | null>(null);
@@ -256,6 +259,47 @@ export default function Home() {
     return () => appRoot.removeAttribute("inert");
   }, [modalOpen]);
 
+  async function reorderApps(sourceId: string, targetId: string): Promise<boolean> {
+    if (reorderingAppsRef.current) return false;
+    const currentApps = appsRef.current;
+    const orderedIds = reorderVisibleAppIds(currentApps, sourceId, targetId);
+    if (!orderedIds || orderedIds.every((id, index) => id === currentApps[index]?.id)) return false;
+
+    reorderingAppsRef.current = true;
+    setReorderingApps(true);
+    setMutationError("");
+
+    try {
+      const expectedIds = currentApps.map((app) => app.id);
+      const expectedVisibleIds = currentApps.filter((app) => app.isVisible).map((app) => app.id);
+      const response = await fetch("/api/apps", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds }) }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) as { ok?: boolean; orderedIds?: string[]; error?: string } | null : null;
+      if (!response?.ok || !result?.ok || !result.orderedIds) throw new Error(result?.error || "Unable to save application order.");
+
+      const currentAppsById = new Map(appsRef.current.map((app) => [app.id, app]));
+      const savedIds = new Set(result.orderedIds);
+      if (savedIds.size !== currentAppsById.size || result.orderedIds.some((id) => !currentAppsById.has(id))) {
+        await loadApps();
+        return false;
+      }
+      const savedApps = result.orderedIds.map((id, sortOrder) => ({ ...currentAppsById.get(id)!, sortOrder }));
+      appsLoadVersionRef.current += 1;
+      appsRequestRef.current?.abort();
+      appsRequestRef.current = null;
+      setAppsLoading(false);
+      appsRef.current = savedApps;
+      setApps(savedApps);
+      return true;
+    } catch (caught) {
+      setMutationError(caught instanceof Error ? caught.message : "Unable to save application order.");
+      await loadApps();
+      return false;
+    } finally {
+      reorderingAppsRef.current = false;
+      setReorderingApps(false);
+    }
+  }
+
 
   async function saveApp(app: ManagedApp) {
     if (saving) return;
@@ -306,11 +350,13 @@ export default function Home() {
   return <>
     <SystemOverview
       apps={apps}
-      children={<ApplicationGrid apps={apps} appsLoading={appsLoading} appsError={appsError} reducedMotion={reducedMotion} onRetry={retryApps} />}
+      children={<ApplicationGrid apps={apps} appsLoading={appsLoading} appsError={appsError} reducedMotion={reducedMotion} onRetry={retryApps} onReorderApps={reorderApps} reorderingApps={reorderingApps} />}
       healthRefreshing={refreshing}
       settingsOpen={settingsOpen}
       onRefreshHealth={refreshHealth}
       onOpenSettings={openSettingsPanel}
+      onReorderApps={reorderApps}
+      reorderingApps={reorderingApps}
       onModalOpenChange={setSystemDetailsOpen}
       refreshOverviewRef={refreshOverviewRef}
     />

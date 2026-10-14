@@ -23,7 +23,7 @@ test("keeps the Web UI host above the stacked protocol and port fields", () => {
   assert.match(narrowBreakpoint(), /\.web-ui-host\s*\{\s*grid-column:\s*1;\s*grid-row:\s*1;\s*\}/);
 });
 
-test("keeps mobile launcher controls below the iOS status bar", () => {
+test("keeps the mobile launcher header below the iOS top safe area", () => {
   const mobile = mobileBreakpoint();
   assert.match(mobile, /\.launcher-bar\s*\{[^}]*height:\s*calc\(54px \+ env\(safe-area-inset-top, 0px\)\)/);
   assert.match(mobile, /\.launcher-bar\s*\{[^}]*padding-top:\s*env\(safe-area-inset-top, 0px\)/);
