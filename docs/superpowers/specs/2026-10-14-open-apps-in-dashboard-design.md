@@ -1,6 +1,6 @@
 # Open Apps Inside Nimbus
 
-**Status:** Approved direction; implementation not started
+**Status:** Implemented
 
 **Date:** 2026-10-14
 
@@ -17,9 +17,13 @@ resolveAppLaunchUrl helper adjusts Docker-hosted app URLs for the current browse
 
 ## Decision
 
-Add a full-viewport app viewer at /apps/[id]. The viewer loads the selected registered app in an
-iframe using its resolved HTTP(S) URL. The launcher grid and dock navigate to this route in the
-current tab.
+Add a full-viewport app viewer at /apps/[id]. Launcher links use a fixed app- prefix followed by
+four lowercase hex digits for each UTF-16 code unit in the app ID (for example,
+/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072). This keeps
+single-dot, double-dot, slash, and other IDs inside one route-safe segment without changing the
+existing ID contract. The server route removes the prefix and decodes the token before the exact
+registry lookup. The viewer loads the selected registered app in an iframe using its resolved
+HTTP(S) URL. The launcher grid and dock navigate to this route in the current tab.
 
 The viewer has a compact toolbar with the app name, a Nimbus link, a Reload button, and an
 Open in new tab link using target="_blank" and rel="noreferrer". Keep the new-tab link and a
@@ -59,8 +63,9 @@ before assigning it to the iframe or external link. Unknown or deleted IDs retur
 
 ## Acceptance criteria
 
-1. Selecting a visible app from the grid or dock navigates to /apps/<encoded-app-id> in the same
-   tab.
+1. Selecting a visible app from the grid or dock navigates to /apps/app-<hex-app-id> in the same
+   tab. Dot-only, slash-containing, space-containing, and Unicode IDs round-trip to their exact
+   registry records.
 2. The viewer resolves Docker-hosted URLs with the browser's current hostname, using the existing
    URL helper.
 3. The viewer embeds only a valid absolute HTTP(S) URL from the selected registry record.
@@ -82,6 +87,7 @@ before assigning it to the iframe or external link. Unknown or deleted IDs retur
 - Update app/globals.css for the full-viewport viewer layout.
 - Add focused browser coverage in tests/app-viewer.spec.ts and extend launcher link coverage in
   tests/dashboard.spec.ts.
+- Add the route ID encoder/decoder and focused cases in lib/app-url.ts and lib/app-url.test.ts.
 - Export and reuse the existing URL validator in lib/app-validation.ts; add coverage in
   lib/app-validation.test.ts.
 - Update docs/architecture.md, docs/security.md, and docs/testing.md.

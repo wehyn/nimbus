@@ -40,10 +40,12 @@ snapshots and keeps hidden slots fixed before writing, so stale tabs receive a c
 overwriting a reorder or visibility change. Updates to existing apps preserve their stored order.
 The dock mirrors the first four visible apps.
 
-The approved in-dashboard viewer design routes launcher and dock selections to
-`/apps/<encoded-app-id>`. The dynamic `app/apps/[id]/page.tsx` route looks up that exact ID in the
-server-side registry and returns 404 when it is unknown or deleted, then passes only launch
-metadata to the client viewer. In the browser, the viewer resolves the registered URL with
+The in-dashboard viewer routes launcher and dock selections to
+`/apps/app-<hex-app-id>`; four lowercase hex digits encode each UTF-16 code unit, and the fixed
+prefix keeps dot-only and slash-containing IDs inside one browser route segment. The dynamic
+`app/apps/[id]/page.tsx` route decodes that token, looks up the exact ID in the server-side registry,
+and returns 404 when it is unknown or deleted, then passes only launch metadata to the client
+viewer. In the browser, the viewer resolves the registered URL with
 `resolveAppLaunchUrl` and the current hostname, validates it, and loads it directly in an iframe.
 The toolbar keeps an external link to the same resolved URL available at all times.
 

@@ -150,7 +150,7 @@ test.describe("dashboard browser regressions", () => {
     const gridLink = page.getByRole("region", { name: "Applications" }).getByRole("link", { name: /Reserved ID service/ });
     const dockLink = page.getByRole("navigation", { name: "Quick launch" }).getByRole("link", { name: "Open Reserved ID service" });
     for (const link of [gridLink, dockLink]) {
-      await expect(link).toHaveAttribute("href", "/apps/other%2Fa%20b");
+      await expect(link).toHaveAttribute("href", "/apps/app-006f0074006800650072002f006100200062");
       await expect(link).not.toHaveAttribute("target");
     }
   });

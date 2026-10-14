@@ -63,7 +63,8 @@ database. Live route/database checks must use a temporary `DATABASE_PATH`. Check
 mobile layouts, including:
 
 - launcher loading and service links
-- grid and dock links navigate in the current tab to the encoded `/apps/<id>` viewer route
+- grid and dock links navigate in the current tab to the hex-encoded `/apps/app-<id>` viewer route,
+  including reserved and dot-only IDs
 - viewer lookup for a registered app, 404 for an unknown ID, browser-side URL resolution, and the
   titled iframe loading the resolved URL directly
 - viewer Reload requests the frame again; the persistent external link targets the resolved URL

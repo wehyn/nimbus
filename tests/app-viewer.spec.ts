@@ -7,7 +7,7 @@ test("shows Crafty controls and reloads its intercepted frame", async ({ page })
     await route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Intercepted Crafty</title>" });
   });
 
-  await page.goto("/apps/crafty-controller");
+  await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
 
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Nimbus" })).toHaveAttribute("href", "/");
@@ -25,15 +25,73 @@ test("shows Crafty controls and reloads its intercepted frame", async ({ page })
 });
 
 test("returns 404 for an unknown app ID", async ({ page }) => {
-  const response = await page.goto("/apps/no-such-app");
+  const response = await page.goto("/apps/app-006e006f002d0073007500630068002d006100700070");
 
   expect(response?.status()).toBe(404);
+});
+
+test("returns 404 for a noncanonical uppercase route token", async ({ page }) => {
+  const response = await page.goto("/apps/app-006300720061006600740079002D0063006F006E00740072006F006C006C00650072");
+
+  expect(response?.status()).toBe(404);
+});
+
+test("opens reserved and dot-only app IDs from launcher links", async ({ page, request }) => {
+  const apps = [".", "..", "other/a b"].map((id) => ({
+    id,
+    name: id === "." ? "Dot service" : id === ".." ? "Dot dot service" : "Reserved service",
+    description: "A persisted route fixture",
+    category: "Other",
+    url: "http://localhost:8443",
+    icon: "",
+    color: "#b9e394",
+    status: "unknown",
+    source: "manual",
+    isVisible: true,
+    sortOrder: id === "." ? 0 : 1,
+  }));
+
+  await page.route("**/api/apps", (route) => route.fulfill({
+    json: { apps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } },
+  }));
+  await page.route("**/api/activity", (route) => route.fulfill({ json: { activities: [] } }));
+  await page.route("**/api/overview", (route) => route.fulfill({ json: {
+    uptime: "1m", cpu: 1, cpuCores: 1, temperatureC: null, powerWatts: null, powerSource: null,
+    memory: 1, memoryUsed: "1 GB", memoryTotal: "8 GB", storage: 1, storageUsed: "1 GB",
+    storageAvailable: "99 GB", storageTotal: "100 GB", downloadBytesPerSecond: null,
+    uploadBytesPerSecond: null, storageVolumes: [], updatedAt: "2026-10-14T00:00:00.000Z",
+  } }));
+  await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 1, statusCode: 200 } }));
+  await page.route(/^http:\/\/localhost:8443\/?$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
+
+  try {
+    for (const app of apps) {
+      const response = await request.post("/api/apps", { data: app });
+      expect(response.ok()).toBe(true);
+    }
+
+    await page.goto("/");
+    for (const app of apps) {
+      const link = page.getByRole("region", { name: "Applications" }).getByRole("link", { name: new RegExp("^" + app.name) });
+      await link.click();
+      const routeIds: Record<string, string> = {
+        ".": "002e",
+        "..": "002e002e",
+        "other/a b": "006f0074006800650072002f006100200062",
+      };
+      await expect.poll(() => new URL(page.url()).pathname).toBe("/apps/app-" + routeIds[app.id]);
+      await expect(page.getByRole("heading", { name: app.name })).toBeVisible();
+      await page.goto("/");
+    }
+  } finally {
+    for (const app of apps) await request.delete("/api/apps", { data: { id: app.id } });
+  }
 });
 
 test("keeps the viewer within desktop and mobile viewport widths", async ({ page }) => {
   await page.route(/^http:\/\/localhost:8443\/?$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/apps/crafty-controller");
+  await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 
