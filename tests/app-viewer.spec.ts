@@ -1,8 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 
-test("shows Crafty controls and reloads its intercepted frame", async ({ page }) => {
+async function getCraftyUrl(request: APIRequestContext) {
+  const response = await request.get("/api/apps");
+  expect(response.ok()).toBe(true);
+  const { apps } = await response.json() as { apps: { id: string; url: string }[] };
+  const crafty = apps.find((app) => app.id === "crafty-controller");
+  if (!crafty) throw new Error("Crafty Controller is missing from the app registry");
+  return crafty.url;
+}
+
+test("shows Crafty controls and reloads its intercepted frame", async ({ page, request }) => {
   let frameRequests = 0;
-  await page.route(/^http:\/\/localhost:8443\/?$/, async (route) => {
+  const craftyUrl = await getCraftyUrl(request);
+  await page.route(craftyUrl, async (route) => {
     frameRequests += 1;
     await route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Intercepted Crafty</title>" });
   });
@@ -12,10 +22,10 @@ test("shows Crafty controls and reloads its intercepted frame", async ({ page })
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Nimbus" })).toHaveAttribute("href", "/");
   const frame = page.locator('iframe[title="Crafty Controller"]');
-  await expect(frame).toHaveAttribute("src", "http://localhost:8443");
+  await expect(frame).toHaveAttribute("src", craftyUrl);
   await expect(page.getByText(/frame|sign-in/i)).toBeVisible();
   const externalLink = page.getByRole("link", { name: "Open in new tab" });
-  await expect(externalLink).toHaveAttribute("href", "http://localhost:8443");
+  await expect(externalLink).toHaveAttribute("href", craftyUrl);
   await expect(externalLink).toHaveAttribute("target", "_blank");
   await expect(externalLink).toHaveAttribute("rel", "noreferrer");
   await expect.poll(() => frameRequests).toBe(1);
@@ -42,7 +52,7 @@ test("opens reserved and dot-only app IDs from launcher links", async ({ page, r
     name: id === "." ? "Dot service" : id === ".." ? "Dot dot service" : "Reserved service",
     description: "A persisted route fixture",
     category: "Other",
-    url: "http://localhost:8443",
+    url: "http://crafty.example.test",
     icon: "",
     color: "#b9e394",
     status: "unknown",
@@ -62,7 +72,7 @@ test("opens reserved and dot-only app IDs from launcher links", async ({ page, r
     uploadBytesPerSecond: null, storageVolumes: [], updatedAt: "2026-10-14T00:00:00.000Z",
   } }));
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 1, statusCode: 200 } }));
-  await page.route(/^http:\/\/localhost:8443\/?$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
+  await page.route(/^http:\/\/crafty\.example\.test\/?$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
 
   try {
     for (const app of apps) {
@@ -88,8 +98,9 @@ test("opens reserved and dot-only app IDs from launcher links", async ({ page, r
   }
 });
 
-test("keeps the viewer within desktop and mobile viewport widths", async ({ page }) => {
-  await page.route(/^http:\/\/localhost:8443\/?$/, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
+test("keeps the viewer within desktop and mobile viewport widths", async ({ page, request }) => {
+  const craftyUrl = await getCraftyUrl(request);
+  await page.route(craftyUrl, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
