@@ -24,7 +24,6 @@ export default function AppViewer({ app }: { app: LaunchApp }) {
         <div className="app-viewer-brand">
           <Link className="app-viewer-back" href="/" aria-label="Back to dashboard" title="Back to dashboard">
             <ArrowLeft size={15} aria-hidden="true" />
-            <span>Back</span>
           </Link>
           <h1 className="app-viewer-title">{app.name}</h1>
         </div>

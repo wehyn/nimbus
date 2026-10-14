@@ -20,7 +20,9 @@ test("shows Crafty controls and reloads its intercepted frame", async ({ page, r
   await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
 
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute("href", "/");
+  const backLink = page.getByRole("link", { name: "Back to dashboard" });
+  await expect(backLink).toHaveAttribute("href", "/");
+  await expect(backLink).toHaveText("");
   const frame = page.locator('iframe[title="Crafty Controller"]');
   await expect(frame).toHaveAttribute("src", craftyUrl);
   await expect(page.getByText(/Some apps block framing or sign-in/i)).toHaveCount(0);
