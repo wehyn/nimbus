@@ -142,6 +142,19 @@ async function dragBetween(page: import("@playwright/test").Page, source: import
 }
 
 test.describe("dashboard browser regressions", () => {
+  test("routes grid and dock app links to the encoded in-app viewer", async ({ page }) => {
+    const fixtureApp = { ...apps[0], id: "other/a b", name: "Reserved ID service" };
+    await installDashboardFixtures(page, [fixtureApp]);
+    await page.goto("/");
+
+    const gridLink = page.getByRole("region", { name: "Applications" }).getByRole("link", { name: /Reserved ID service/ });
+    const dockLink = page.getByRole("navigation", { name: "Quick launch" }).getByRole("link", { name: "Open Reserved ID service" });
+    for (const link of [gridLink, dockLink]) {
+      await expect(link).toHaveAttribute("href", "/apps/other%2Fa%20b");
+      await expect(link).not.toHaveAttribute("target");
+    }
+  });
+
   const orderScenarios = [
     { label: "after a deletion gap", orders: [0, 1, 2], deletedIndex: 1, expectedOrder: 3 },
     { label: "with negative existing orders", orders: [-4, -3], deletedIndex: 0, expectedOrder: -2 },
