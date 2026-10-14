@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { resolveAppLaunchUrl } from "@/lib/app-url";
 import { isWebUrl } from "@/lib/app-validation";
 import type { ManagedApp } from "@/lib/types";
@@ -21,19 +22,22 @@ export default function AppViewer({ app }: { app: LaunchApp }) {
     <main className="app-viewer">
       <header className="app-viewer-toolbar">
         <div className="app-viewer-brand">
-          <Link className="app-viewer-home" href="/">Nimbus</Link>
+          <Link className="app-viewer-back" href="/" aria-label="Back to dashboard" title="Back to dashboard">
+            <ArrowLeft size={15} aria-hidden="true" />
+            <span>Back</span>
+          </Link>
           <h1 className="app-viewer-title">{app.name}</h1>
         </div>
         <div className="app-viewer-actions">
           <button
             className="app-viewer-action"
             type="button"
+            aria-label="Reload"
+            title="Reload"
             disabled={!launchUrl}
             onClick={() => setFrameVersion((version) => version + 1)}
-          >
-            Reload
-          </button>
-          {launchUrl && <a className="app-viewer-action" href={launchUrl} target="_blank" rel="noreferrer">Open in new tab</a>}
+          ><RefreshCw size={15} aria-hidden="true" /></button>
+          {launchUrl && <a className="app-viewer-action" href={launchUrl} target="_blank" rel="noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink size={15} aria-hidden="true" /></a>}
         </div>
       </header>
       <p className="app-viewer-hint">Some apps block framing or sign-in. If this frame is blank or login fails, open the app in a new tab.</p>

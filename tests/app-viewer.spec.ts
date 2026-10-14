@@ -20,7 +20,7 @@ test("shows Crafty controls and reloads its intercepted frame", async ({ page, r
   await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
 
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Nimbus" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute("href", "/");
   const frame = page.locator('iframe[title="Crafty Controller"]');
   await expect(frame).toHaveAttribute("src", craftyUrl);
   await expect(page.getByText(/frame|sign-in/i)).toBeVisible();
@@ -98,14 +98,24 @@ test("opens reserved and dot-only app IDs from launcher links", async ({ page, r
   }
 });
 
-test("keeps the viewer within desktop and mobile viewport widths", async ({ page, request }) => {
+test("keeps the viewer toolbar on one row at desktop and mobile widths", async ({ page, request }) => {
   const craftyUrl = await getCraftyUrl(request);
   await page.route(craftyUrl, (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html>" }));
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/apps/app-006300720061006600740079002d0063006f006e00740072006f006c006c00650072");
   await expect(page.getByRole("heading", { name: "Crafty Controller" })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 
-  await page.setViewportSize({ width: 320, height: 720 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  for (const width of [1280, 320]) {
+    await page.setViewportSize({ width, height: 720 });
+    const bounds = await Promise.all([
+      page.getByRole("link", { name: "Back to dashboard" }).boundingBox(),
+      page.getByRole("heading", { name: "Crafty Controller" }).boundingBox(),
+      page.getByRole("button", { name: "Reload" }).boundingBox(),
+      page.getByRole("link", { name: "Open in new tab" }).boundingBox(),
+    ]);
+    expect(bounds.every(Boolean)).toBe(true);
+    const rowCenters = bounds.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...rowCenters) - Math.min(...rowCenters)).toBeLessThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
