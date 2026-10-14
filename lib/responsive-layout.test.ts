@@ -10,10 +10,21 @@ function narrowBreakpoint() {
   return match?.[1] || "";
 }
 
+function mobileBreakpoint() {
+  const match = stylesheet.match(/@media \(max-width: 640px\)\s*\{([\s\S]*?)\n\}/);
+  return match?.[1] || "";
+}
+
 test("stacks Web UI protocol and port fields below the narrow phone breakpoint", () => {
   assert.match(narrowBreakpoint(), /\.web-ui-fields\s*\{\s*grid-template-columns:\s*1fr;\s*\}/);
 });
 
 test("keeps the Web UI host above the stacked protocol and port fields", () => {
   assert.match(narrowBreakpoint(), /\.web-ui-host\s*\{\s*grid-column:\s*1;\s*grid-row:\s*1;\s*\}/);
+});
+
+test("keeps mobile launcher controls below the iOS status bar", () => {
+  const mobile = mobileBreakpoint();
+  assert.match(mobile, /\.launcher-bar\s*\{[^}]*height:\s*calc\(54px \+ env\(safe-area-inset-top, 0px\)\)/);
+  assert.match(mobile, /\.launcher-bar\s*\{[^}]*padding-top:\s*env\(safe-area-inset-top, 0px\)/);
 });
