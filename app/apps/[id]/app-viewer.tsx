@@ -40,7 +40,6 @@ export default function AppViewer({ app }: { app: LaunchApp }) {
           {launchUrl && <a className="app-viewer-action" href={launchUrl} target="_blank" rel="noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink size={15} aria-hidden="true" /></a>}
         </div>
       </header>
-      <p className="app-viewer-hint">Some apps block framing or sign-in. If this frame is blank or login fails, open the app in a new tab.</p>
       {launchUrl ? (
         <iframe key={frameVersion} className="app-viewer-frame" src={launchUrl} title={app.name} />
       ) : launchUrl === null ? (
