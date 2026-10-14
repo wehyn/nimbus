@@ -61,6 +61,7 @@ mobile layouts, including:
 
 - launcher loading and service links
 - application add, edit, visibility, and delete flows
+- saved app order survives editing an application
 - settings modal focus, Escape, and focus restoration
 - processor and memory detail dialogs
 - CPU and memory history charts with Live, 15m, and 30m range switching

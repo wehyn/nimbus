@@ -280,7 +280,7 @@ export default function Home() {
         await loadApps();
         return;
       }
-      const savedApps = result.orderedIds.map((id) => currentAppsById.get(id)!);
+      const savedApps = result.orderedIds.map((id, sortOrder) => ({ ...currentAppsById.get(id)!, sortOrder }));
       appsRef.current = savedApps;
       setApps(savedApps);
     } catch (caught) {

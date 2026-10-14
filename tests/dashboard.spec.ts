@@ -151,6 +151,47 @@ test.describe("dashboard browser regressions", () => {
     });
   }
 
+  test("keeps app order after editing a reordered application", async ({ page }) => {
+    let persistedApps: DashboardApp[] = [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ];
+    let savedApp: DashboardApp | null = null;
+    await installDashboardFixtures(page, persistedApps);
+    await page.unroute("**/api/apps");
+    await page.route("**/api/apps", async (route) => {
+      const method = route.request().method();
+      if (method === "GET") {
+        const orderedApps = [...persistedApps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name));
+        return route.fulfill({ json: { apps: orderedApps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } });
+      }
+      if (method === "PATCH") {
+        const orderedIds = (route.request().postDataJSON() as { orderedIds: string[] }).orderedIds;
+        const appsById = new Map(persistedApps.map((app) => [app.id, app]));
+        persistedApps = orderedIds.map((id, sortOrder) => ({ ...appsById.get(id)!, sortOrder }));
+        return route.fulfill({ json: { ok: true, orderedIds } });
+      }
+      if (method === "POST") {
+        savedApp = route.request().postDataJSON() as DashboardApp;
+        persistedApps = persistedApps.map((app) => app.id === savedApp?.id ? savedApp : app);
+        return route.fulfill({ json: { app: savedApp } });
+      }
+      return route.fulfill({ status: 400, json: { error: "unsupported application mutation" } });
+    });
+
+    await page.goto("/");
+    await page.getByRole("region", { name: "Applications" }).getByRole("button", { name: "Reorder application" }).first().press("ArrowDown");
+    await expect.poll(() => [...persistedApps].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name)).map((app) => app.id)).toEqual(["beta", "alpha"]);
+
+    await page.getByRole("button", { name: "Application management" }).click();
+    await page.getByRole("button", { name: "Edit Alpha" }).click();
+    const dialog = page.getByRole("dialog", { name: "Application details" });
+    await dialog.getByLabel("Description").fill("Edited after reorder");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => savedApp?.sortOrder).toBe(1);
+    await expect.poll(() => page.locator(".launcher-grid [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
+  });
+
   test("shows network and processor readings in their cards and lets me switch storage volumes", async ({ page }) => {
     const fixtureOverview = { ...overview, temperatureC: 53, powerWatts: 3.28 };
     await installDashboardFixtures(page, apps, [], fixtureOverview);
