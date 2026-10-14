@@ -58,15 +58,17 @@ browser tests against the default `data/nimbus.db`.
 ## Browser smoke coverage
 
 Playwright E2E coverage is checked in under `tests/` and runs with `npm run test:browser`. The
-fixtures mock operational APIs so UI tests do not contact private services or mutate the local
-database. Live route/database checks must use a temporary `DATABASE_PATH`. Check both desktop and
-mobile layouts, including:
+fixtures mock operational APIs so UI tests do not contact private services. The invalid stored URL
+case mutates only the browser suite's isolated database; no local app database is changed. Live
+route/database checks must use a temporary `DATABASE_PATH`. Check both desktop and mobile layouts,
+including:
 
 - launcher loading and service links
 - grid and dock links navigate in the current tab to the hex-encoded `/apps/app-<id>` viewer route,
   including reserved and dot-only IDs
-- viewer lookup for a registered app, 404 for an unknown ID, browser-side URL resolution, and the
-  titled iframe loading the resolved URL directly
+- viewer lookup for a registered app, 404 for an unknown ID, invalid stored URLs excluded from the
+  iframe and external link, Docker-host URL resolution to the browser host, and a titled iframe
+  loading the resolved URL directly
 - viewer Reload requests the frame again; the persistent external link targets the resolved URL
   with `target="_blank"` and `rel="noreferrer"`
 - viewer layout and no horizontal overflow at desktop and phone widths

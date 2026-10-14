@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 import { join } from "node:path";
 
+const browserDatabasePath = process.env.NIMBUS_PLAYWRIGHT_DATABASE_PATH || join(process.cwd(), ".playwright-cli", `nimbus-browser-${process.pid}.db`);
+process.env.NIMBUS_PLAYWRIGHT_DATABASE_PATH = browserDatabasePath;
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -16,7 +19,7 @@ export default defineConfig({
     url: "http://127.0.0.1:3000",
     env: {
       NODE_ENV: "development",
-      DATABASE_PATH: join(process.cwd(), ".playwright-cli", `nimbus-browser-${process.pid}.db`),
+      DATABASE_PATH: browserDatabasePath,
       DOCKER_AGENT_URL: "",
       DOCKER_AGENT_TOKEN: "",
       MEMORY_AGENT_URL: "",

@@ -1,4 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { DatabaseSync } from "node:sqlite";
+import { encodeAppRouteId } from "../lib/app-url.ts";
 
 async function getCraftyUrl(request: APIRequestContext) {
   const response = await request.get("/api/apps");
@@ -7,6 +9,18 @@ async function getCraftyUrl(request: APIRequestContext) {
   const crafty = apps.find((app) => app.id === "crafty-controller");
   if (!crafty) throw new Error("Crafty Controller is missing from the app registry");
   return crafty.url;
+}
+
+function updateStoredAppUrl(id: string, url: string) {
+  const databasePath = process.env.NIMBUS_PLAYWRIGHT_DATABASE_PATH;
+  if (!databasePath) throw new Error("The isolated browser database path is unavailable");
+  const database = new DatabaseSync(databasePath);
+  try {
+    const result = database.prepare("UPDATE apps SET url = ? WHERE id = ?").run(url, id);
+    if (Number(result.changes) !== 1) throw new Error(`Expected one stored app row for ${id}`);
+  } finally {
+    database.close();
+  }
 }
 
 test("shows Crafty controls and reloads its intercepted frame", async ({ page, request }) => {
@@ -46,6 +60,70 @@ test("returns 404 for a noncanonical uppercase route token", async ({ page }) =>
   const response = await page.goto("/apps/app-006300720061006600740079002D0063006F006E00740072006F006C006C00650072");
 
   expect(response?.status()).toBe(404);
+});
+
+test("does not use an invalid URL stored in an app record", async ({ page, request }) => {
+  const app = {
+    id: "viewer-invalid-url",
+    name: "Invalid URL app",
+    description: "An invalid legacy record",
+    category: "Other",
+    url: "https://example.com",
+    icon: "",
+    color: "#b9e394",
+    status: "unknown",
+    source: "manual",
+    isVisible: true,
+    sortOrder: 0,
+  };
+  const response = await request.post("/api/apps", { data: app });
+  expect(response.ok()).toBe(true);
+
+  try {
+    updateStoredAppUrl(app.id, "javascript:alert(1)");
+    await page.goto(`/apps/app-${encodeAppRouteId(app.id)}`);
+
+    await expect(page.getByText("This app has an invalid web address and cannot be opened.", { exact: true })).toBeVisible();
+    await expect(page.locator("iframe")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Open in new tab" })).toHaveCount(0);
+  } finally {
+    await request.delete("/api/apps", { data: { id: app.id } });
+  }
+});
+
+test("resolves Docker-backed app URLs for the viewer's browser host", async ({ page, request }) => {
+  const app = {
+    id: "viewer-docker",
+    name: "Docker viewer app",
+    description: "A Docker-backed viewer fixture",
+    category: "Other",
+    url: "http://example.com:2283/photos",
+    icon: "",
+    color: "#b9e394",
+    status: "unknown",
+    source: "docker",
+    dockerProject: "viewer-test",
+    isVisible: true,
+    sortOrder: 0,
+  };
+  const response = await request.post("/api/apps", { data: app });
+  expect(response.ok()).toBe(true);
+  let frameRequests = 0;
+  await page.route((url) => url.port === "2283" && url.pathname === "/photos", async (route) => {
+    frameRequests += 1;
+    await route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Docker app preview</title>" });
+  });
+
+  try {
+    await page.goto(`/apps/app-${encodeAppRouteId(app.id)}`);
+    const expectedUrl = `http://${new URL(page.url()).hostname}:2283/photos`;
+
+    await expect(page.locator('iframe[title="Docker viewer app"]')).toHaveAttribute("src", expectedUrl);
+    await expect(page.getByRole("link", { name: "Open in new tab" })).toHaveAttribute("href", expectedUrl);
+    await expect.poll(() => frameRequests).toBe(1);
+  } finally {
+    await request.delete("/api/apps", { data: { id: app.id } });
+  }
 });
 
 test("opens reserved and dot-only app IDs from launcher links", async ({ page, request }) => {
