@@ -68,7 +68,8 @@ mobile layouts, including:
 - grid and dock pointer dragging in both directions, no move on a short in-place drag, touch reordering after a long press, and focus when a dock app moves into the grid; a short touch does not reorder
 - reorder buttons identify their application to screen readers
 - settings modal focus, Escape, and focus restoration
-- system detail cards open from the full card surface at desktop and phone widths and restore focus
+- Processor, Memory, and Storage cards open from the full card surface at desktop and phone widths and restore focus
+- processor and memory detail dialogs
 - mobile launcher header respects the iOS top safe area
 - CPU and memory history charts with Live, 15m, and 30m range switching
 - Live selected by default as a rolling five-minute window; only Live polls while the detail modal is open
