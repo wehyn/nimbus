@@ -63,6 +63,12 @@ database. Live route/database checks must use a temporary `DATABASE_PATH`. Check
 mobile layouts, including:
 
 - launcher loading and service links
+- grid and dock links navigate in the current tab to the encoded `/apps/<id>` viewer route
+- viewer lookup for a registered app, 404 for an unknown ID, browser-side URL resolution, and the
+  titled iframe loading the resolved URL directly
+- viewer Reload requests the frame again; the persistent external link targets the resolved URL
+  with `target="_blank"` and `rel="noreferrer"`
+- viewer layout and no horizontal overflow at desktop and phone widths
 - application add, edit, visibility, and delete flows
 - saved app order survives stale app edits and older in-flight reads; stale order and visibility snapshots are rejected
 - grid and dock pointer dragging in both directions, no move on a short in-place drag, touch reordering after a long press, and focus when a dock app moves into the grid; a short touch does not reorder

@@ -40,6 +40,13 @@ snapshots and keeps hidden slots fixed before writing, so stale tabs receive a c
 overwriting a reorder or visibility change. Updates to existing apps preserve their stored order.
 The dock mirrors the first four visible apps.
 
+The approved in-dashboard viewer design routes launcher and dock selections to
+`/apps/<encoded-app-id>`. The dynamic `app/apps/[id]/page.tsx` route looks up that exact ID in the
+server-side registry and returns 404 when it is unknown or deleted, then passes only launch
+metadata to the client viewer. In the browser, the viewer resolves the registered URL with
+`resolveAppLaunchUrl` and the current hostname, validates it, and loads it directly in an iframe.
+The toolbar keeps an external link to the same resolved URL available at all times.
+
 The registry, activity, overview, and health routes remain separate. Operational API responses are
 not cached by the service worker. Overview sampling uses a two-second in-process TTL with
 in-flight request coalescing; this limits duplicate host probes while preserving a fresh response
