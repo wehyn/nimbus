@@ -10,13 +10,17 @@ type ReorderableAppProps = {
   orderedIds: string[];
   surface: "grid" | "dock";
   disabled: boolean;
-  onReorder: (sourceId: string, targetId: string) => void;
+  onReorder: (sourceId: string, targetId: string) => Promise<boolean>;
+  onAnnounce?: (message: string) => void;
+  onFocusOut?: (appId: string) => void;
   children: ReactNode;
 };
 
-export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, onReorder, children }: ReorderableAppProps) {
+export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, onReorder, onAnnounce, onFocusOut, children }: ReorderableAppProps) {
   const dragControls = useDragControls();
   const descriptionId = useId();
+  const reorderableRef = useRef<HTMLDivElement>(null);
+  const sourceBoundsRef = useRef<DOMRect | null>(null);
   const longPressRef = useRef<{ timeout: number; pointerId: number; x: number; y: number } | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
@@ -31,6 +35,7 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (disabled || event.button !== 0) return;
+    sourceBoundsRef.current = reorderableRef.current?.getBoundingClientRect() ?? null;
     if (event.pointerType !== "touch") {
       dragControls.start(event);
       return;
@@ -51,40 +56,64 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) cancelLongPress();
   }
 
-  function moveWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>) {
+  async function moveWithKeyboard(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     const currentIndex = orderedIds.indexOf(appId);
     const targetId = orderedIds[currentIndex + (event.key === "ArrowUp" ? -1 : 1)];
     if (currentIndex < 0 || !targetId || disabled) return;
     event.preventDefault();
-    onReorder(appId, targetId);
-    setAnnouncement(`${appName} moved to position ${currentIndex + (event.key === "ArrowUp" ? 0 : 2)} of ${orderedIds.length}.`);
+    const nextPosition = currentIndex + (event.key === "ArrowUp" ? 0 : 2);
+    const leavesDock = surface === "dock" && event.key === "ArrowDown" && currentIndex === 3;
+    const message = `${appName} moved to position ${nextPosition} of ${orderedIds.length}.`;
+    if (!await onReorder(appId, targetId)) return;
+    if (surface === "dock") onAnnounce?.(message);
+    else setAnnouncement(message);
+    if (leavesDock) onFocusOut?.(appId);
   }
 
-  function finishDrag(_event: MouseEvent | TouchEvent | PointerEvent, info: { point: { x: number; y: number } }) {
-    const target = document.elementFromPoint(info.point.x - window.scrollX, info.point.y - window.scrollY);
+  async function reorderFromDrag(targetId: string) {
+    if (targetId === appId || !await onReorder(appId, targetId)) return;
+    if (surface === "dock" && orderedIds.indexOf(appId) < 4 && orderedIds.indexOf(targetId) >= 4) onFocusOut?.(appId);
+  }
+
+  async function finishDrag(_event: MouseEvent | TouchEvent | PointerEvent, info: { point: { x: number; y: number } }) {
+    const draggedElement = reorderableRef.current;
+    const x = info.point.x - window.scrollX;
+    const y = info.point.y - window.scrollY;
+    const sourceBounds = sourceBoundsRef.current;
+    sourceBoundsRef.current = null;
+    if (sourceBounds && x >= sourceBounds.left && x <= sourceBounds.right && y >= sourceBounds.top && y <= sourceBounds.bottom) return;
+
+    const hitStack = document.elementsFromPoint(x, y);
+    const dropSurface = hitStack.map((element) => element.closest(".launcher-dock, .launcher-grid")).find(Boolean);
+    const target = hitStack.find((element) => {
+      const targetElement = element.closest<HTMLElement>("[data-reorder-id]");
+      return targetElement !== null && targetElement !== draggedElement;
+    });
     const targetId = target?.closest<HTMLElement>("[data-reorder-id]")?.dataset.reorderId;
     if (targetId) {
-      if (targetId !== appId) onReorder(appId, targetId);
+      await reorderFromDrag(targetId);
       return;
     }
 
-    if (target?.closest(".launcher-dock")) {
+    if (dropSurface?.matches(".launcher-dock")) {
       const dockTargetId = orderedIds[Math.min(3, orderedIds.length - 1)];
-      if (dockTargetId && dockTargetId !== appId) onReorder(appId, dockTargetId);
-    } else if (target?.closest(".launcher-grid")) {
+      if (dockTargetId) await reorderFromDrag(dockTargetId);
+    } else if (dropSurface?.matches(".launcher-grid")) {
       const lastTargetId = orderedIds.at(-1);
-      if (lastTargetId && lastTargetId !== appId) onReorder(appId, lastTargetId);
+      if (lastTargetId) await reorderFromDrag(lastTargetId);
     }
   }
 
   return <motion.div
+    ref={reorderableRef}
     className={`app-reorderable app-reorderable-${surface}`}
     data-reorder-id={appId}
     drag
     dragControls={dragControls}
     dragListener={false}
     dragMomentum={false}
+    dragSnapToOrigin
     dragElastic={0.12}
     layout
     whileDrag={{ scale: 1.04, zIndex: 20 }}
@@ -94,11 +123,11 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     <button
       type="button"
       className="app-reorder-handle"
-      aria-label="Reorder application"
+      aria-label={`Reorder application ${appName}`}
       aria-describedby={descriptionId}
       aria-keyshortcuts="ArrowUp ArrowDown"
       title="Drag to reorder; press and hold on touch screens"
-      disabled={disabled}
+      aria-disabled={disabled}
       onPointerDown={startDrag}
       onPointerMove={trackLongPress}
       onPointerUp={cancelLongPress}

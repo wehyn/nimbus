@@ -259,18 +259,20 @@ export default function Home() {
     return () => appRoot.removeAttribute("inert");
   }, [modalOpen]);
 
-  async function reorderApps(sourceId: string, targetId: string) {
-    if (reorderingAppsRef.current) return;
+  async function reorderApps(sourceId: string, targetId: string): Promise<boolean> {
+    if (reorderingAppsRef.current) return false;
     const currentApps = appsRef.current;
     const orderedIds = reorderVisibleAppIds(currentApps, sourceId, targetId);
-    if (!orderedIds || orderedIds.every((id, index) => id === currentApps[index]?.id)) return;
+    if (!orderedIds || orderedIds.every((id, index) => id === currentApps[index]?.id)) return false;
 
     reorderingAppsRef.current = true;
     setReorderingApps(true);
     setMutationError("");
 
     try {
-      const response = await fetch("/api/apps", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderedIds }) }).catch(() => null);
+      const expectedIds = currentApps.map((app) => app.id);
+      const expectedVisibleIds = currentApps.filter((app) => app.isVisible).map((app) => app.id);
+      const response = await fetch("/api/apps", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds }) }).catch(() => null);
       const result = response ? await response.json().catch(() => null) as { ok?: boolean; orderedIds?: string[]; error?: string } | null : null;
       if (!response?.ok || !result?.ok || !result.orderedIds) throw new Error(result?.error || "Unable to save application order.");
 
@@ -278,14 +280,20 @@ export default function Home() {
       const savedIds = new Set(result.orderedIds);
       if (savedIds.size !== currentAppsById.size || result.orderedIds.some((id) => !currentAppsById.has(id))) {
         await loadApps();
-        return;
+        return false;
       }
       const savedApps = result.orderedIds.map((id, sortOrder) => ({ ...currentAppsById.get(id)!, sortOrder }));
+      appsLoadVersionRef.current += 1;
+      appsRequestRef.current?.abort();
+      appsRequestRef.current = null;
+      setAppsLoading(false);
       appsRef.current = savedApps;
       setApps(savedApps);
+      return true;
     } catch (caught) {
       setMutationError(caught instanceof Error ? caught.message : "Unable to save application order.");
       await loadApps();
+      return false;
     } finally {
       reorderingAppsRef.current = false;
       setReorderingApps(false);

@@ -16,7 +16,7 @@ type SystemOverviewProps = {
   settingsOpen: boolean;
   onRefreshHealth: () => Promise<void>;
   onOpenSettings: () => void;
-  onReorderApps: (sourceId: string, targetId: string) => void;
+  onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>;
   reorderingApps: boolean;
   onModalOpenChange: (open: boolean) => void;
   refreshOverviewRef: MutableRefObject<(() => Promise<void>) | null>;
@@ -107,17 +107,17 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
       <section className="launcher-body">
         <section className="launcher-system" aria-label="System overview">
           <div className="system-card" aria-busy={overviewRefreshing}>
-            <article className="system-summary-card processor-card">
+            <article className="system-summary-card system-summary-card-clickable processor-card">
               <SystemMetric icon={<Cpu size={19} />} label="Processor" accessibilityLabel="CPU" value={cpuValue} progress={overview?.cpu} tone="green" onOpen={() => openSystemDetails("processor")} loading={overviewRefreshing} />
               <div className="processor-telemetry" role="group" aria-label="Processor readings">
                 <span className="system-card-meta-item system-card-meta-temperature" role="img" aria-label={`Temperature: ${temperatureValue}`}><Thermometer size={13} aria-hidden="true" /><strong>{temperatureValue}</strong></span>
                 <span className="system-card-meta-item system-card-meta-power" role="img" aria-label={`Power: ${powerValue}`}><Zap size={13} aria-hidden="true" /><strong>{powerValue}</strong></span>
               </div>
             </article>
-            <article className="system-summary-card">
+            <article className="system-summary-card system-summary-card-clickable">
               <SystemMetric icon={<Database size={19} />} label="Memory" value={memoryValue} progress={overview?.memory} tone="blue" onOpen={() => openSystemDetails("memory")} loading={overviewRefreshing} />
             </article>
-            <article className="system-summary-card">
+            <article className="system-summary-card system-summary-card-clickable">
               <SystemMetric icon={<HardDrive size={19} />} label="Storage" value={storageValue} progress={overview?.storage} tone="orange" onOpen={() => openSystemDetails("storage")} loading={overviewRefreshing} />
             </article>
             <article className="system-summary-card network-summary-card">

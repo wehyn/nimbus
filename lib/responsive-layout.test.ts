@@ -17,3 +17,7 @@ test("stacks Web UI protocol and port fields below the narrow phone breakpoint",
 test("keeps the Web UI host above the stacked protocol and port fields", () => {
   assert.match(narrowBreakpoint(), /\.web-ui-host\s*\{\s*grid-column:\s*1;\s*grid-row:\s*1;\s*\}/);
 });
+
+test("keeps the mobile launcher header below the iOS top safe area", () => {
+  assert.ok(/\.launcher-bar\s*\{\s*height:\s*calc\(54px \+ env\(safe-area-inset-top, 0px\)\);\s*padding:\s*0 15px;\s*padding-top:\s*env\(safe-area-inset-top, 0px\);/.test(stylesheet), "mobile launcher header must include iOS top safe-area padding");
+});

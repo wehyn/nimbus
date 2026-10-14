@@ -153,7 +153,7 @@ test("keeps the inert column on a newly initialized database", async () => {
   }
 });
 
-test("persists only complete application orders through the apps API", async () => {
+test("rejects stale app orders and preserves order across stale edits", async () => {
   const root = mkdtempSync(join(tmpdir(), "nimbus-app-order-"));
   const databasePath = join(root, "apps.db");
   let child: ChildProcess | undefined;
@@ -162,25 +162,214 @@ test("persists only complete application orders through the apps API", async () 
     const server = await startNextServer(databasePath);
     child = server.child;
     const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
-    const initialData = await initialResponse.json() as { apps: Array<{ id: string }> };
-    const orderedIds = initialData.apps.map((app) => app.id).reverse();
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string; isVisible: boolean; sortOrder: number; description: string; [key: string]: unknown }> };
+    const expectedIds = initialData.apps.map((app) => app.id);
+    const expectedVisibleIds = initialData.apps.filter((app) => app.isVisible).map((app) => app.id);
+    assert.ok(expectedVisibleIds.length > 1);
+    const orderedVisibleIds = [...expectedVisibleIds].reverse();
+    let visibleIndex = 0;
+    const orderedIds = initialData.apps.map((app) => app.isVisible ? orderedVisibleIds[visibleIndex++] : app.id);
     const response = await fetch(`${server.baseUrl}/api/apps`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderedIds }),
+      body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds }),
     });
     assert.equal(response.status, 200);
+
+    const staleVisibleIds = [...expectedVisibleIds];
+    [staleVisibleIds[0], staleVisibleIds[1]] = [staleVisibleIds[1], staleVisibleIds[0]];
+    visibleIndex = 0;
+    const staleOrderedIds = initialData.apps.map((app) => app.isVisible ? staleVisibleIds[visibleIndex++] : app.id);
+    const staleOrderResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds: staleOrderedIds }),
+    });
+    assert.equal(staleOrderResponse.status, 409);
+
+    const afterStaleOrderResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const afterStaleOrder = await afterStaleOrderResponse.json() as { apps: Array<{ id: string }> };
+    assert.deepEqual(afterStaleOrder.apps.map((app) => app.id), orderedIds);
 
     const invalidResponse = await fetch(`${server.baseUrl}/api/apps`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderedIds: orderedIds.slice(1) }),
+      body: JSON.stringify({ expectedIds: orderedIds, expectedVisibleIds, orderedIds: orderedIds.slice(1) }),
     });
     assert.equal(invalidResponse.status, 400);
 
+    const staleApp = { ...initialData.apps[0], description: "Edited from a stale tab" };
+    const expectedSortOrder = orderedIds.indexOf(staleApp.id);
+    const editResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(staleApp),
+    });
+    assert.equal(editResponse.status, 200);
+    const editData = await editResponse.json() as { app: { sortOrder: number } };
+    assert.equal(editData.app.sortOrder, expectedSortOrder);
+
+    const savedResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const savedData = await savedResponse.json() as { apps: Array<{ id: string; sortOrder: number; description: string }> };
+    assert.deepEqual(savedData.apps.map((app) => app.id), orderedIds);
+    assert.equal(savedData.apps.find((app) => app.id === staleApp.id)?.sortOrder, expectedSortOrder);
+    assert.equal(savedData.apps.find((app) => app.id === staleApp.id)?.description, "Edited from a stale tab");
+  } finally {
+    if (child) await stopNextServer(child);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects reorder requests that move hidden application slots", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nimbus-hidden-order-"));
+  const databasePath = join(root, "apps.db");
+  let child: ChildProcess | undefined;
+
+  try {
+    const server = await startNextServer(databasePath);
+    child = server.child;
+    const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string; isVisible: boolean; [key: string]: unknown }> };
+    const appToHide = initialData.apps.find((app) => app.isVisible);
+    assert.ok(appToHide);
+    const hideResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...appToHide, isVisible: false }),
+    });
+    assert.equal(hideResponse.status, 200);
+
+    const snapshotResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const snapshot = await snapshotResponse.json() as { apps: Array<{ id: string; isVisible: boolean }> };
+    const expectedIds = snapshot.apps.map((app) => app.id);
+    const expectedVisibleIds = snapshot.apps.filter((app) => app.isVisible).map((app) => app.id);
+    const hiddenIndex = snapshot.apps.findIndex((app) => !app.isVisible);
+    const neighborIndex = hiddenIndex === 0 ? 1 : hiddenIndex - 1;
+    const orderedIds = [...expectedIds];
+    [orderedIds[hiddenIndex], orderedIds[neighborIndex]] = [orderedIds[neighborIndex], orderedIds[hiddenIndex]];
+
+    const reorderResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds }),
+    });
+    assert.equal(reorderResponse.status, 409);
+
     const savedResponse = await fetch(`${server.baseUrl}/api/apps`);
     const savedData = await savedResponse.json() as { apps: Array<{ id: string }> };
-    assert.deepEqual(savedData.apps.map((app) => app.id), orderedIds);
+    assert.deepEqual(savedData.apps.map((app) => app.id), expectedIds);
+  } finally {
+    if (child) await stopNextServer(child);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects stale visibility snapshots without changing app order", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nimbus-visibility-order-"));
+  const databasePath = join(root, "apps.db");
+  let child: ChildProcess | undefined;
+
+  try {
+    const server = await startNextServer(databasePath);
+    child = server.child;
+    const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string; isVisible: boolean; [key: string]: unknown }> };
+    const expectedIds = initialData.apps.map((app) => app.id);
+    const expectedVisibleIds = initialData.apps.filter((app) => app.isVisible).map((app) => app.id);
+    assert.ok(expectedVisibleIds.length > 1);
+    const appToHide = initialData.apps.find((app) => app.id === expectedVisibleIds[0]);
+    assert.ok(appToHide);
+
+    const hideResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...appToHide, isVisible: false }),
+    });
+    assert.equal(hideResponse.status, 200);
+
+    const staleOrderedIds = [...expectedIds];
+    const firstVisibleIndex = expectedIds.indexOf(expectedVisibleIds[0]);
+    const secondVisibleIndex = expectedIds.indexOf(expectedVisibleIds[1]);
+    [staleOrderedIds[firstVisibleIndex], staleOrderedIds[secondVisibleIndex]] = [staleOrderedIds[secondVisibleIndex], staleOrderedIds[firstVisibleIndex]];
+    const reorderResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedIds, expectedVisibleIds, orderedIds: staleOrderedIds }),
+    });
+    assert.equal(reorderResponse.status, 409);
+
+    const savedResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const savedData = await savedResponse.json() as { apps: Array<{ id: string }> };
+    assert.deepEqual(savedData.apps.map((app) => app.id), expectedIds);
+  } finally {
+    if (child) await stopNextServer(child);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("assigns new apps distinct positions when clients submit the same stale order", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nimbus-add-order-"));
+  const databasePath = join(root, "apps.db");
+  let child: ChildProcess | undefined;
+
+  try {
+    const server = await startNextServer(databasePath);
+    child = server.child;
+    const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string; sortOrder: number; [key: string]: unknown }> };
+    const staleSortOrder = Math.max(...initialData.apps.map((app) => app.sortOrder)) + 1;
+    const firstApp = { ...initialData.apps[0], id: "parallel-add-alpha", name: "Parallel add Alpha", sortOrder: staleSortOrder };
+    const secondApp = { ...initialData.apps[0], id: "parallel-add-beta", name: "Parallel add Beta", sortOrder: staleSortOrder };
+    const responses = await Promise.all([firstApp, secondApp].map((app) => fetch(`${server.baseUrl}/api/apps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(app),
+    })));
+    const savedApps = await Promise.all(responses.map((response) => response.json() as Promise<{ app: { sortOrder: number } }>));
+
+    assert.deepEqual(responses.map((response) => response.status), [200, 200]);
+    assert.deepEqual(savedApps.map((result) => result.app.sortOrder).sort((left, right) => left - right), [staleSortOrder, staleSortOrder + 1]);
+  } finally {
+    if (child) await stopNextServer(child);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("keeps legacy tied app positions stable after a rename", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nimbus-tied-order-"));
+  const databasePath = join(root, "apps.db");
+  let child: ChildProcess | undefined;
+
+  try {
+    const server = await startNextServer(databasePath);
+    child = server.child;
+    const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string; name: string; sortOrder: number; [key: string]: unknown }> };
+    assert.ok(initialData.apps.length > 1);
+    const [firstApp, secondApp] = initialData.apps;
+    const tiedSortOrder = Math.max(...initialData.apps.map((app) => app.sortOrder)) + 1;
+    const database = new DatabaseSync(databasePath);
+    database.prepare("UPDATE apps SET name = ?, sort_order = ? WHERE id = ?").run("A stable tie", tiedSortOrder, firstApp.id);
+    database.prepare("UPDATE apps SET name = ?, sort_order = ? WHERE id = ?").run("B stable tie", tiedSortOrder, secondApp.id);
+    database.close();
+
+    const tiedResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const tiedData = await tiedResponse.json() as { apps: Array<{ id: string; name: string; sortOrder: number; [key: string]: unknown }> };
+    const expectedTieOrder = tiedData.apps.filter((app) => app.sortOrder === tiedSortOrder).map((app) => app.id);
+    assert.equal(expectedTieOrder.length, 2);
+    const renamedApp = tiedData.apps.find((app) => app.id === firstApp.id);
+    assert.ok(renamedApp);
+
+    const renameResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...renamedApp, name: "Z stable tie" }),
+    });
+    assert.equal(renameResponse.status, 200);
+
+    const savedResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const savedData = await savedResponse.json() as { apps: Array<{ id: string; sortOrder: number }> };
+    assert.deepEqual(savedData.apps.filter((app) => app.sortOrder === tiedSortOrder).map((app) => app.id), expectedTieOrder);
   } finally {
     if (child) await stopNextServer(child);
     rmSync(root, { recursive: true, force: true });

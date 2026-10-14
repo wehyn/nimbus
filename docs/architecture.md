@@ -27,15 +27,18 @@ application registry, health state, and mutations. `SystemOverview` owns the ove
 five-second poll, readings, and system-detail selection; `LauncherClock` owns its thirty-second
 clock tick. `ApplicationGrid` filters and renders app states, while memoized launcher tiles and the
 settings panel isolate stable application UI from unrelated overview and clock updates. New app
-sort orders are derived from the highest current order, including hidden apps, so gaps from deletion
-do not cause a duplicate order. Application changes are
-sent to `/api/apps`, whose handlers delegate to the singleton `DatabaseSync` connection in
-`lib/db.ts`. The database creates its schema and seeds `lib/seed.ts` only when the `apps` table is
-empty.
+sort orders are assigned from the database maximum, including hidden apps, inside the save
+transaction, so stale add forms do not create duplicate positions. A stable ID tie-breaker keeps
+legacy duplicate positions unchanged when an app name is edited. Application changes are sent to
+`/api/apps`, whose handlers delegate to the singleton `DatabaseSync` connection in `lib/db.ts`. The
+database creates its schema and seeds `lib/seed.ts` only when the `apps` table is empty.
 
 Visible apps can be reordered from the grid or dock using the shared `sort_order` sequence. The UI
-keeps hidden apps in their existing positions, while `/api/apps` `PATCH` validates and writes the
-complete ID order in one SQLite transaction. The dock mirrors the first four visible apps.
+keeps hidden apps in their existing positions, while `/api/apps` `PATCH` receives the expected ID
+and visible ID sequences plus the complete new ID order. One SQLite transaction checks those
+snapshots and keeps hidden slots fixed before writing, so stale tabs receive a conflict instead of
+overwriting a reorder or visibility change. Updates to existing apps preserve their stored order.
+The dock mirrors the first four visible apps.
 
 The registry, activity, overview, and health routes remain separate. Operational API responses are
 not cached by the service worker. Overview sampling uses a two-second in-process TTL with

@@ -13,7 +13,7 @@ type ApplicationGridProps = {
   appsError: string;
   reducedMotion: boolean;
   onRetry: () => void;
-  onReorderApps: (sourceId: string, targetId: string) => void;
+  onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>;
   reorderingApps: boolean;
 };
 

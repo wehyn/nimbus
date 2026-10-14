@@ -43,8 +43,11 @@ The API routes are the main integration boundary:
 - `/api/memory/processes`
 
 Database compatibility coverage verifies the inert legacy `apps.is_favorite` column remains readable
-and is preserved without appearing in API JSON. It also verifies that app ordering persists through
-`PATCH /api/apps` and that incomplete orders are rejected without changing the saved order.
+and is preserved without appearing in API JSON. It also verifies that `PATCH /api/apps` persists
+complete orders, rejects stale order and visibility snapshots, keeps hidden slots fixed, and leaves
+the saved order unchanged after a rejected or incomplete update. New app saves assign a unique next
+position even when two stale clients submit the same position, and tied legacy positions remain
+stable after a rename.
 Activity-retention tests verify the 90-day/1,000-row policy without changing app or metric data.
 
 Route behavior can be checked with a temporary `DATABASE_PATH` so local application data is not
@@ -61,9 +64,12 @@ mobile layouts, including:
 
 - launcher loading and service links
 - application add, edit, visibility, and delete flows
-- saved app order survives editing an application
+- saved app order survives stale app edits and older in-flight reads; stale order and visibility snapshots are rejected
+- grid and dock pointer dragging in both directions, no move on a short in-place drag, touch reordering after a long press, and focus when a dock app moves into the grid; a short touch does not reorder
+- reorder buttons identify their application to screen readers
 - settings modal focus, Escape, and focus restoration
-- processor and memory detail dialogs
+- system detail cards open from the full card surface at desktop and phone widths and restore focus
+- mobile launcher header respects the iOS top safe area
 - CPU and memory history charts with Live, 15m, and 30m range switching
 - Live selected by default as a rolling five-minute window; only Live polls while the detail modal is open
 - 15m and 30m fetch once when selected; no history request occurs while the detail modal is closed

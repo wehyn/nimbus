@@ -55,21 +55,27 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const payload = await readJson(request);
-  if (!isRecord(payload) || !Array.isArray(payload.orderedIds)) {
-    return NextResponse.json({ error: "orderedIds must contain every application id once" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  if (!isRecord(payload) || !Array.isArray(payload.expectedIds) || !Array.isArray(payload.expectedVisibleIds) || !Array.isArray(payload.orderedIds)) {
+    return NextResponse.json({ error: "expectedIds, expectedVisibleIds, and orderedIds are required" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
 
-  const currentIds = new Set(listApps().map((app) => app.id));
-  if (payload.orderedIds.length !== currentIds.size || !payload.orderedIds.every((id) => typeof id === "string" && id.length > 0)) {
-    return NextResponse.json({ error: "orderedIds must contain every application id once" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  const expectedIds = payload.expectedIds as unknown[];
+  const expectedVisibleIds = payload.expectedVisibleIds as unknown[];
+  const orderedIds = payload.orderedIds as unknown[];
+  if (expectedIds.length !== orderedIds.length || !expectedIds.every((id) => typeof id === "string" && id.length > 0) || !expectedVisibleIds.every((id) => typeof id === "string" && id.length > 0) || !orderedIds.every((id) => typeof id === "string" && id.length > 0)) {
+    return NextResponse.json({ error: "expectedIds, expectedVisibleIds, and orderedIds must contain application ids" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
 
-  const orderedIds = payload.orderedIds as string[];
-  const requestedIds = new Set(orderedIds);
-  if (requestedIds.size !== orderedIds.length || requestedIds.size !== currentIds.size || [...currentIds].some((id) => !requestedIds.has(id))) {
-    return NextResponse.json({ error: "orderedIds must contain every application id once" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  const expectedOrder = expectedIds as string[];
+  const expectedVisibleOrder = expectedVisibleIds as string[];
+  const orderedOrder = orderedIds as string[];
+  const expectedIdSet = new Set(expectedOrder);
+  const expectedVisibleIdSet = new Set(expectedVisibleOrder);
+  const requestedIdSet = new Set(orderedOrder);
+  if (expectedIdSet.size !== expectedOrder.length || expectedVisibleIdSet.size !== expectedVisibleOrder.length || [...expectedVisibleIdSet].some((id) => !expectedIdSet.has(id)) || requestedIdSet.size !== orderedOrder.length || [...expectedIdSet].some((id) => !requestedIdSet.has(id))) {
+    return NextResponse.json({ error: "expectedIds, expectedVisibleIds, and orderedIds must contain each application id once" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
-  if (!reorderApps(orderedIds)) return NextResponse.json({ error: "application list changed; reload and retry" }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+  if (!reorderApps(orderedOrder, expectedOrder, expectedVisibleOrder)) return NextResponse.json({ error: "application order changed; reload and retry" }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
   return NextResponse.json({ ok: true, orderedIds: listApps().map((app) => app.id) }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
