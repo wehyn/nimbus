@@ -150,7 +150,6 @@ h1, h2, h3, p { margin: 0; }
   .launcher-tile:hover { transform: translateY(-2px); }
   .launcher-tile:hover .app-icon-large { box-shadow: 0 0 0 1px oklch(1 0 0 / .16), 0 14px 30px rgba(8, 10, 15, .3), inset 0 1px 0 rgba(255, 255, 255, .4); }
   .system-summary-card-clickable:hover { border-color: rgba(255, 255, 255, .24); }
-  .system-metric-link:hover { background: rgba(255, 255, 255, .06); }
 }
 .dock-icon:active { transform: scale(.96); }
 @media (prefers-reduced-transparency: reduce) {
