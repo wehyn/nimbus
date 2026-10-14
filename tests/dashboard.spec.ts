@@ -187,6 +187,38 @@ test.describe("dashboard browser regressions", () => {
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("View storage details");
   });
 
+  test("opens system details when the body of a KPI card is pressed", async ({ page }) => {
+    await installDashboardFixtures(page);
+    await page.goto("/");
+
+    const systemOverview = page.getByRole("region", { name: "System overview" });
+    const cards = [
+      { index: 0, title: "Processor", trigger: "View cpu details" },
+      { index: 1, title: "Memory", trigger: "View memory details" },
+      { index: 2, title: "Storage", trigger: "View storage details" },
+    ];
+
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const card of cards) {
+        const bounds = await systemOverview.locator(".system-summary-card").nth(card.index).boundingBox();
+        expect(bounds).not.toBeNull();
+        await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height - 8);
+
+        const dialog = page.getByRole("dialog", { name: card.title });
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(dialog).toHaveCount(0);
+        await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe(card.trigger);
+      }
+    }
+
+    const networkBounds = await systemOverview.locator(".network-summary-card").boundingBox();
+    expect(networkBounds).not.toBeNull();
+    await page.mouse.click(networkBounds!.x + networkBounds!.width / 2, networkBounds!.y + networkBounds!.height / 2);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
   test("serves install metadata and network-first service worker without private services", async ({ page, request }) => {
     await installDashboardFixtures(page);
     const manifestResponse = await request.get("/manifest.webmanifest");

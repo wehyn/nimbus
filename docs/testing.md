@@ -61,6 +61,8 @@ mobile layouts, including:
 - launcher loading and service links
 - application add, edit, visibility, and delete flows
 - settings modal focus, Escape, and focus restoration
+- Processor, Memory, and Storage cards opening from their full surface with focus restoration at desktop and phone widths
+- iOS standalone launcher header placement below the status-bar safe area (manual device check)
 - processor and memory detail dialogs
 - CPU and memory history charts with Live, 15m, and 30m range switching
 - Live selected by default as a rolling five-minute window; only Live polls while the detail modal is open

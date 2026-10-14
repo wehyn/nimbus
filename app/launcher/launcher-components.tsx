@@ -39,7 +39,7 @@ export function SystemMetric({ icon, label, value, progress, tone, onOpen, loadi
 
   return <div className="system-metric" aria-busy={loading}>
     {onOpen
-      ? <button type="button" className="system-metric-bar system-metric-link" onClick={onOpen} aria-label={`View ${metricLabel.toLowerCase()} details`}>{content}</button>
+      ? <button type="button" className="system-metric-bar system-metric-link" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpen?.(); }} aria-label={`View ${metricLabel.toLowerCase()} details`}>{content}</button>
       : <div className="system-metric-bar">{content}</div>}
     <span className="system-meter" role="progressbar" aria-label={`${metricLabel} usage`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress === undefined ? undefined : Math.round(clamped)}>
       <span className={`system-meter-fill ${tone}`} style={{ width: `${clamped}%` }} />
