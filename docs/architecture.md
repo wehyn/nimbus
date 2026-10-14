@@ -8,7 +8,7 @@ service links, health status, activity history, and basic host metrics in one ho
 ```mermaid
 flowchart TD
     Browser[Browser: launcher UI in app/page.tsx and app/launcher/] --> Next[Next.js App Router]
-    Next --> AppsAPI[GET/POST/DELETE /api/apps]
+    Next --> AppsAPI[GET/POST/PATCH/DELETE /api/apps]
     Next --> HealthAPI[GET /api/health]
     Next --> OverviewAPI[GET /api/overview]
     Next --> ActivityAPI[GET /api/activity]
@@ -32,6 +32,10 @@ do not cause a duplicate order. Application changes are
 sent to `/api/apps`, whose handlers delegate to the singleton `DatabaseSync` connection in
 `lib/db.ts`. The database creates its schema and seeds `lib/seed.ts` only when the `apps` table is
 empty.
+
+Visible apps can be reordered from the grid or dock using the shared `sort_order` sequence. The UI
+keeps hidden apps in their existing positions, while `/api/apps` `PATCH` validates and writes the
+complete ID order in one SQLite transaction. The dock mirrors the first four visible apps.
 
 The registry, activity, overview, and health routes remain separate. Operational API responses are
 not cached by the service worker. Overview sampling uses a two-second in-process TTL with
@@ -87,9 +91,10 @@ Metric history charts are mounted only inside processor and memory detail modals
 - `app/launcher/system-overview.tsx`: overview polling/readings and system-detail ownership.
 - `app/launcher/launcher-clock.tsx`: local clock state and timer.
 - `app/launcher/application-grid.tsx`: app filtering, loading/error states, and launcher tiles.
+- `app/launcher/reorderable-app.tsx`: shared drag handle, touch long-press, and keyboard reordering.
 - `app/launcher/`: settings, icons, activity, and display helpers.
 - `app/system-details-modal.tsx`: sortable CPU and memory process views plus storage details.
-- `app/api/apps/`: application CRUD API.
+- `app/api/apps/`: application CRUD and ordering API.
 - `app/api/health/`: configured service health checks.
 - `app/api/overview/`: host overview metrics.
 - `app/api/activity/`: recent activity history.

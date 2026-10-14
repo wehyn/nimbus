@@ -152,3 +152,37 @@ test("keeps the inert column on a newly initialized database", async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("persists only complete application orders through the apps API", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nimbus-app-order-"));
+  const databasePath = join(root, "apps.db");
+  let child: ChildProcess | undefined;
+
+  try {
+    const server = await startNextServer(databasePath);
+    child = server.child;
+    const initialResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const initialData = await initialResponse.json() as { apps: Array<{ id: string }> };
+    const orderedIds = initialData.apps.map((app) => app.id).reverse();
+    const response = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds }),
+    });
+    assert.equal(response.status, 200);
+
+    const invalidResponse = await fetch(`${server.baseUrl}/api/apps`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds: orderedIds.slice(1) }),
+    });
+    assert.equal(invalidResponse.status, 400);
+
+    const savedResponse = await fetch(`${server.baseUrl}/api/apps`);
+    const savedData = await savedResponse.json() as { apps: Array<{ id: string }> };
+    assert.deepEqual(savedData.apps.map((app) => app.id), orderedIds);
+  } finally {
+    if (child) await stopNextServer(child);
+    rmSync(root, { recursive: true, force: true });
+  }
+});

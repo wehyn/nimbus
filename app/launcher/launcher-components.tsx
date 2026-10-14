@@ -4,6 +4,7 @@ import { memo } from "react";
 import type { ManagedApp } from "@/lib/types";
 import { Home, Settings2 } from "lucide-react";
 import { AppIcon } from "./icons";
+import { ReorderableApp } from "./reorderable-app";
 import { statusCopy } from "./utils";
 
 export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedApp }) {
@@ -16,13 +17,15 @@ export const LauncherTile = memo(function LauncherTile({ app }: { app: ManagedAp
   </a>;
 });
 
-export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings }: { apps: ManagedApp[]; onOpenSettings: () => void }) {
-  const dockApps = apps.filter((app) => app.isVisible).slice(0, 4);
+export const LauncherDock = memo(function LauncherDock({ apps, onOpenSettings, onReorderApps, reorderingApps }: { apps: ManagedApp[]; onOpenSettings: () => void; onReorderApps: (sourceId: string, targetId: string) => void; reorderingApps: boolean }) {
+  const visibleApps = apps.filter((app) => app.isVisible);
+  const orderedIds = visibleApps.map((app) => app.id);
+  const dockApps = visibleApps.slice(0, 4);
 
   return <nav className="launcher-dock" aria-label="Quick launch">
     <a className="dock-icon" href="#overview" aria-label="Overview" title="Overview"><Home size={18} aria-hidden="true" /></a>
     <span className="dock-divider" aria-hidden="true" />
-    {dockApps.map((app) => <a className="dock-icon" key={app.id} href={resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname)} target="_blank" rel="noreferrer" aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></a>)}
+    {dockApps.map((app) => <ReorderableApp key={app.id} appId={app.id} appName={app.name} orderedIds={orderedIds} surface="dock" disabled={reorderingApps} onReorder={onReorderApps}><a className="dock-icon" href={resolveAppLaunchUrl(app, typeof window === "undefined" ? undefined : window.location.hostname)} target="_blank" rel="noreferrer" aria-label={`Open ${app.name}`} title={app.name}><AppIcon app={app} /></a></ReorderableApp>)}
     <span className="dock-divider" aria-hidden="true" />
     <button type="button" className="dock-icon" onClick={onOpenSettings} aria-label="Settings" title="Settings"><Settings2 size={17} aria-hidden="true" /></button>
   </nav>;

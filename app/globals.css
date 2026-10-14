@@ -72,6 +72,16 @@ h1, h2, h3, p { margin: 0; }
 .launcher-grid-empty { grid-template-columns: minmax(0, 1fr); }
 .launcher-grid-empty .launcher-tile-wrap { display: flex; justify-content: center; }
 .launcher-tile-wrap { min-width: 0; }
+.app-reorderable { position: relative; min-width: 0; user-select: none; -webkit-user-select: none; }
+.app-reorderable-grid { width: 100%; }
+.app-reorderable-dock { width: 44px; height: 44px; flex: 0 0 auto; }
+.app-reorder-handle { position: absolute; z-index: 4; width: 29px; height: 29px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255, 255, 255, .3); border-radius: 9px; background: rgba(28, 30, 34, .88); color: #fff; opacity: 0; cursor: grab; touch-action: none; transition: opacity 150ms ease-out, background-color 150ms ease-out; }
+.app-reorderable-grid .app-reorder-handle { top: 0; left: calc(50% + 18px); }
+.app-reorderable-dock .app-reorder-handle { top: -3px; right: -3px; width: 25px; height: 25px; border-radius: 8px; }
+.app-reorderable:hover .app-reorder-handle, .app-reorderable:focus-within .app-reorder-handle, .app-reorder-handle:focus-visible { opacity: 1; }
+.app-reorder-handle:active { background: rgba(75, 80, 87, .96); cursor: grabbing; }
+.app-reorder-handle:disabled { opacity: .45; cursor: wait; }
+@media (hover: none) { .app-reorder-handle { opacity: 1; } }
 .launcher-tile { width: 100%; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 0; border: 0; border-radius: 18px; background: transparent; box-shadow: none; touch-action: manipulation; user-select: none; -webkit-user-select: none; text-align: center; transition: transform 150ms ease-out; }
 .launcher-tile:active { transform: scale(.96); }
 .launcher-iconwrap { position: relative; display: block; }
@@ -393,6 +403,9 @@ h1, h2, h3, p { margin: 0; }
   .network-values svg { width: 11px; height: 11px; }
   .launcher-dock { right: 12px; bottom: calc(9px + env(safe-area-inset-bottom, 0px)); left: 12px; transform: none; justify-content: space-around; gap: 3px; min-height: 56px; padding: 6px; }
   .dock-icon { width: 37px; height: 37px; border-radius: 11px; }
+  .app-reorderable-dock { width: 37px; height: 37px; }
+  .app-reorderable-grid .app-reorder-handle { left: calc(50% + 11px); }
+  .app-reorderable-dock .app-reorder-handle { top: -3px; right: -3px; width: 23px; height: 23px; }
   .launcher-dock .app-icon { width: 31px; height: 31px; flex-basis: 31px; border-radius: 9px; }
   .dock-divider { height: 28px; margin: 0 1px; }
   .form-columns-equal { grid-template-columns: 1fr; }

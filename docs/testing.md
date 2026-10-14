@@ -35,7 +35,7 @@ The project requires Node.js 24+ because it uses the built-in `node:sqlite` API.
 
 The API routes are the main integration boundary:
 
-- `/api/apps`
+- `/api/apps`, including persisted reorder validation
 - `/api/health`
 - `/api/overview`
 - `/api/activity`
@@ -43,8 +43,9 @@ The API routes are the main integration boundary:
 - `/api/memory/processes`
 
 Database compatibility coverage verifies the inert legacy `apps.is_favorite` column remains readable
-and is preserved without appearing in API JSON. Activity-retention tests verify the 90-day/1,000-row
-policy without changing app or metric data.
+and is preserved without appearing in API JSON. It also verifies that app ordering persists through
+`PATCH /api/apps` and that incomplete orders are rejected without changing the saved order.
+Activity-retention tests verify the 90-day/1,000-row policy without changing app or metric data.
 
 Route behavior can be checked with a temporary `DATABASE_PATH` so local application data is not
 modified. The browser configuration always launches a fresh development server with an isolated

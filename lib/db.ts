@@ -138,6 +138,27 @@ export function listApps() {
   return (getDatabase().prepare("SELECT * FROM apps ORDER BY sort_order ASC, name ASC").all() as Record<string, unknown>[]).map(fromRow);
 }
 
+export function reorderApps(orderedIds: readonly string[]) {
+  const database = getDatabase();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const existingIds = new Set((database.prepare("SELECT id FROM apps").all() as { id: string }[]).map((app) => app.id));
+    const requestedIds = new Set(orderedIds);
+    if (requestedIds.size !== orderedIds.length || requestedIds.size !== existingIds.size || [...existingIds].some((id) => !requestedIds.has(id))) {
+      database.exec("ROLLBACK");
+      return false;
+    }
+
+    const update = database.prepare("UPDATE apps SET sort_order = ? WHERE id = ?");
+    orderedIds.forEach((id, sortOrder) => update.run(sortOrder, id));
+    database.exec("COMMIT");
+    return true;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function findApp(id: string) {
   const row = getDatabase().prepare("SELECT * FROM apps WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   return row ? fromRow(row) : undefined;
