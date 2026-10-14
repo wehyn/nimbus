@@ -25,11 +25,11 @@ existing ID contract. The server route removes the prefix and decodes the token 
 registry lookup. The viewer loads the selected registered app in an iframe using its resolved
 HTTP(S) URL. The launcher grid and dock navigate to this route in the current tab.
 
-The viewer has a compact toolbar with the app name, a Nimbus link, a Reload button, and an
-Open in new tab link using target="_blank" and rel="noreferrer". Keep the new-tab link and a
-short embedding hint visible even when the iframe has loaded: the parent page cannot reliably
-inspect a cross-origin app to tell whether its frame policy, login, or content has failed. Reload
-remounts the iframe instead of reading or changing its cross-origin document.
+The viewer has a compact one-row toolbar with the app name, an arrow-only Back link to the
+dashboard, and icon-only Reload and Open in new tab controls. The Back link's accessible name is
+"Back to dashboard"; the other controls also have accessible names. Keep the direct-open link
+available, but do not show a persistent framing or sign-in hint. Reload remounts the iframe instead
+of reading or changing its cross-origin document.
 
 The app route reads the selected app by ID from the server-side registry. It passes only the
 launch data needed by the client viewer and never accepts an app URL from a query parameter or
@@ -57,9 +57,10 @@ before assigning it to the iframe or external link. Unknown or deleted IDs retur
 - App tile and dock links remain keyboard-accessible links with their app names in accessible text.
 - The viewer is a route rather than a small modal so apps have the available viewport.
 - Give the iframe an accessible title matching the app name.
-- Give the Nimbus, Reload, and Open in new tab controls clear accessible names.
+- Give the arrow-only Back link the accessible name "Back to dashboard"; give Reload and Open in new
+  tab clear accessible names.
 - Keep the toolbar usable at desktop and phone widths, including device safe areas.
-- The Nimbus control always links to /; browser Back also follows normal route history.
+- The arrow-only Back control always links to /; browser Back also follows normal route history.
 
 ## Acceptance criteria
 
@@ -69,8 +70,8 @@ before assigning it to the iframe or external link. Unknown or deleted IDs retur
 2. The viewer resolves Docker-hosted URLs with the browser's current hostname, using the existing
    URL helper.
 3. The viewer embeds only a valid absolute HTTP(S) URL from the selected registry record.
-4. The title, iframe, Reload control, Nimbus link, and Open in new tab link identify and target the
-   selected app correctly.
+4. The title and iframe identify the selected app; Back returns to the dashboard, Reload remounts
+   the frame, and Open in new tab targets the selected app.
 5. Reload requests the frame again without accessing the cross-origin frame document.
 6. Unknown or deleted app IDs return 404. Invalid stored URLs do not become iframe or external-link
    targets.

@@ -24,6 +24,7 @@ links navigate to the viewer route; no proxy, API, or schema changes are needed.
   preserve every currently valid app ID, including dot-only and slash-containing values.
 - Do not fetch app URLs from Nimbus, proxy them, or change their response headers.
 - Keep app-specific frame policy, authentication, and TLS behavior under the service/browser.
+- Keep the direct-open control available without a persistent framing or sign-in hint.
 - Add no dependency, database field, migration, or authentication mechanism.
 - Preserve the existing interface and accessible controls; support desktop, mobile, and safe areas.
 - For TypeScript/runtime changes, run npm test, npm run lint, npm run build, and the relevant
@@ -35,8 +36,8 @@ links navigate to the viewer route; no proxy, API, or schema changes are needed.
 - Unknown or deleted app IDs must return 404 without constructing a frame URL.
 - Invalid stored URLs must not become iframe or external-link targets.
 - The route token must round-trip the existing app ID contract; malformed tokens return 404.
-- Frame-denied apps and apps with blocked embedded sign-in must retain a visible external link and
-  clear user guidance.
+- Frame-denied apps and apps with blocked embedded sign-in must retain a direct-open link; do not
+  show persistent framing or sign-in hint copy.
 - Reload must not inspect or mutate a cross-origin frame document.
 
 ---
@@ -90,7 +91,7 @@ links navigate to the viewer route; no proxy, API, or schema changes are needed.
   decodeAppRouteId in lib/app-url.ts. Run the focused unit tests again; expected: all assertions
   pass.
 - [x] **Step 4: Add failing browser coverage** in tests/app-viewer.spec.ts:
-  verify the seeded app's heading, titled iframe URL, Nimbus link, and external link with
+  verify the seeded app's heading, titled iframe URL, arrow-only Back link, and external link with
   target="_blank" and rel="noreferrer"; verify Reload causes a second frame request; and verify
   an unknown ID returns 404. Create isolated persisted fixtures for dot-only and slash/space IDs,
   then click their launcher links and assert each opens its matching viewer. The unit test covers
@@ -102,11 +103,11 @@ links navigate to the viewer route; no proxy, API, or schema changes are needed.
 - [x] **Step 6: Create the dynamic server page** with runtime set to nodejs and dynamic rendering
   enabled. Await params, read the app via listApps(), select by exact ID, call notFound() when
   absent, and pass only the launch metadata above.
-- [x] **Step 7: Create the client viewer** with a full-viewport iframe, app title, Nimbus link,
-  Reload button, visible frame-policy/login hint, and external link. Resolve the URL using the
-  existing helpers and current browser hostname. Validate it with isWebUrl before using it. Show an
-  unavailable message and no app link for an invalid value. Implement Reload by changing the
-  iframe key.
+- [x] **Step 7: Create the client viewer** with a full-viewport iframe, app title, arrow-only Back
+  link to the dashboard, Reload control, and external link. Do not add a persistent frame-policy or
+  sign-in hint. Resolve the URL using the existing helpers and current browser hostname. Validate
+  it with isWebUrl before using it. Show an unavailable message and no app link for an invalid
+  value. Implement Reload by changing the iframe key.
 - [x] **Step 8: Add responsive viewer styles** in app/globals.css. Keep the toolbar visible above
   the frame, avoid horizontal overflow, and apply safe-area insets on phones.
 - [x] **Step 9: Run the focused browser test** again.
