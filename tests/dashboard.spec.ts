@@ -425,6 +425,9 @@ test.describe("dashboard browser regressions", () => {
 
         const dialog = page.getByRole("dialog", { name: card.title });
         await expect(dialog).toBeVisible();
+        await expect(dialog).toHaveAttribute("aria-modal", "true");
+        await page.keyboard.press("Shift+Tab");
+        await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
         await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
         await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe(card.trigger);
@@ -676,7 +679,11 @@ test.describe("dashboard browser regressions", () => {
     await page.goto("/");
     const trigger = page.getByRole("button", { name: "Application management" });
     await trigger.click();
-    await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
+    const settingsDialog = page.getByRole("dialog", { name: "Application management" });
+    await expect(settingsDialog).toBeVisible();
+    await expect(settingsDialog).toHaveAttribute("aria-modal", "true");
+    await page.keyboard.press("Shift+Tab");
+    await expect.poll(() => settingsDialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
     await page.getByRole("button", { name: "Add", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Application details" });
     await expect(dialog).toBeVisible();
@@ -689,7 +696,14 @@ test.describe("dashboard browser regressions", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Application management");
+    await expect(settingsDialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await expect(settingsDialog).toBeVisible();
+    await page.getByRole("button", { name: "Close application modal" }).click();
+    await expect(settingsDialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 
   test("resynchronizes application form fields when switching records", async ({ page }) => {
@@ -748,8 +762,8 @@ test.describe("dashboard browser regressions", () => {
 
     await page.getByRole("button", { name: "View cpu details" }).click();
     await expect.poll(() => historyRequests.length).toBe(1);
+    await expect(page.getByRole("dialog", { name: "Processor" })).toHaveAttribute("aria-modal", "true");
     await page.getByRole("button", { name: "Close processor details" }).click();
-    await expect(page.locator("body > div")).not.toHaveAttribute("inert", "");
     await page.evaluate(() => new Promise<void>((resolve) => queueMicrotask(resolve)));
     await page.clock.runFor(1_000);
     await expect(page.getByRole("dialog", { name: "Processor" })).toHaveCount(0);

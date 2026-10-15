@@ -1,6 +1,6 @@
 # Nimbus Dashboard Performance Design
 
-**Status:** Proposed; awaiting review
+**Status:** Approved; implemented and measured
 
 **Date:** 2026-10-15
 
@@ -27,13 +27,41 @@ Measurements were collected from a production build served with the same standal
 
 The evidence points to client bundle and list-rendering work. Startup, app/overview APIs, and the indexed history query do not justify backend, database, retention, caching, or polling changes.
 
+## Measured outcome
+
+The deferred-panel experiment reduced `/` First Load JS from 169 KB to 161 KB and initial JavaScript
+transfer from 173,249 to 164,904 bytes. FCP and time to the first tile showed no clear improvement.
+Even after pointer/focus preloading, five-run click-to-content medians for 256 rows regressed:
+
+| Screen | Static baseline | Split after preload |
+| --- | ---: | ---: |
+| Management | 412 ms | 692 ms |
+| Processor | 269 ms | 530 ms |
+| Memory | 258 ms | 542 ms |
+| Storage | 252 ms | 380 ms |
+
+The split and its preload hooks were reverted. After restoring static imports and removing per-tile
+entrance motion, five-run medians were 353 ms for management, 254 ms for processor, 260 ms for
+memory, and 194 ms for storage. These ranges overlap the static baseline, so no screen-open win is
+claimed. The final build reports 169 KB First Load JS and 173,058 bytes of initial JavaScript
+transfer. The app-viewer timing covered only its title and toolbar because the fixture had no usable
+iframe URL.
+
+Removing per-tile entrance motion reduced desktop 256-tile scrolling long tasks from a three-run
+median of two tasks / 108 ms total to one / 57 ms; a second after run measured one / 57 ms. On
+phone-sized viewports and with 24 tiles, the median count remained zero. Row counts and scroll height
+stayed stable. The settings-row animation trial did not improve 256-row open or scroll time and was
+reverted. None of the three `content-visibility` trials produced a repeatable gain, so all were
+removed. API, overview, and seven-day history paths remained fast and unchanged.
+
 ## Options considered
 
-### 1. Defer unopened panels and test native offscreen rendering — recommended
+### 1. Defer unopened panels and test native offscreen rendering — tested, not retained
 
 Split application management and system details from the launcher’s first-load bundle. Then test browser-native `content-visibility: auto` on repeated list items, with measured intrinsic sizes, while keeping every row in the DOM and accessibility tree. Measure the two changes separately and keep each only if it improves the target path without hurting the first open, scroll stability, or app reordering.
 
-This reuses Next.js code splitting and CSS containment. It does not add a dependency, change list ordering, or require a new windowing system.
+The split and CSS rules were measured independently. The transfer saving did not offset first-open
+delays, and the offscreen rules did not improve scrolling, so none is present in the final code.
 
 ### 2. Virtualize the app and process lists
 
@@ -43,20 +71,19 @@ Mount only the visible rows plus an overscan window. This could cut more DOM and
 
 Server-render a bootstrap payload, cache operational API responses, or change history queries and retention. The measured route and history costs are already low. These changes would add freshness, privacy, or data-compatibility risks without addressing the measured list-rendering delay, so they are out of scope.
 
-## Proposed design
+## Approved implementation and experiments
 
-### Phase A: split closed modal code
+### Phase A: test closed-modal code splitting
 
-- Dynamically load `SettingsPanel` when application management opens and `SystemDetailsModal` when a processor, memory, or storage detail opens. The chart remains inside the system-detail chunk unless build evidence justifies a separate split.
-- Keep modal state, `inert`, Escape handling, focus return, reduced motion, error states, and retry behavior correct while a chunk loads. Provide a small accessible loading state; do not leave the page inert without a focusable modal state.
-- Measure a cold first open as well as repeat opens. If the split delays the first open materially, test intent preloading on trigger focus/hover before deciding whether to keep it. Do not add preloading preemptively.
+- Dynamic imports and focus/hover preloading were implemented and measured, then reverted after first-open delays remained high.
+- Final code statically imports both panels. Their `aria-modal` dialogs retain keyboard focus traps and Escape behavior; the full-screen backdrop blocks pointer access, and focus returns after the exit animation.
 - Make no API, health, overview, service-worker, or SQLite changes.
 
-### Phase B: defer offscreen list rendering
+### Phase B: test offscreen list rendering
 
-- Test CSS `content-visibility: auto` at repeated item boundaries in the launcher grid, settings app list, and process table. Set intrinsic sizes from measured item geometry so skipped content reserves stable space.
-- Preserve every item's DOM node, order, focusability, accessible name, and table semantics. Do not remove rows or change the process response cap.
-- Keep an item-level rule only if it reduces scroll-associated long tasks or list-open work in the controlled benchmark. Skip a target if the table-row or Framer Motion layout behavior makes sizes, drag/drop, keyboard reordering, or focus unreliable.
+- All three `content-visibility: auto` rules were tried and removed for lack of repeatable wins.
+- Removing only the launcher's per-tile entrance motion reduced desktop 256-tile scroll long-task time while preserving layout/reorder motion, exits, every DOM row, and accessible names.
+- A settings-row entrance/layout-motion trial did not help and was reverted.
 
 ## Measurement plan
 
@@ -66,7 +93,7 @@ Use the same production build/runtime packaging and isolated fixtures before and
 
 - Record First Load JS, per-route chunk transfer, FCP, and time to first usable app tile.
 - Measure first and repeat opens for management, processor, memory, and storage details, plus the app viewer.
-- Verify focus, Escape, `inert`, focus restoration, reduced motion, loading/error presentation, and modal close behavior.
+- Verify `aria-modal`, focus trapping, Escape, focus restoration, reduced motion, loading/error presentation, and modal close behavior.
 - Keep the split only if first-screen transfer/rendering improves and the first-use screen experience remains acceptable. Add intent preloading only as a separately measured adjustment if a cold open regresses.
 
 ### Phase B comparison
@@ -80,12 +107,12 @@ The seven-day metrics endpoint remains a before/after no-change control. Its res
 
 ## Files and verification boundaries
 
-Likely implementation files:
+Implementation and experiment files:
 
-- `app/page.tsx` and `app/launcher/system-overview.tsx` for deferred panel imports and loading behavior.
-- `app/globals.css` for the measured offscreen-rendering rules.
-- `tests/performance.spec.ts` and focused existing modal/reordering browser coverage for structural behavior and accessibility.
-- `docs/architecture.md` and `docs/testing.md` for the final behavior and benchmark procedure.
+- `app/page.tsx` and `app/launcher/system-overview.tsx` for panel ownership and focus restoration.
+- `app/launcher/application-grid.tsx` for the retained launcher entrance-motion change.
+- `tests/performance.spec.ts` and existing modal/reordering browser coverage for list structure and accessibility.
+- `docs/architecture.md` and `docs/testing.md` for retained behavior and benchmark results.
 
 Run the project-required `npm test`, `npm run lint`, and `npm run build`; run `npm run build:agent` and the browser suite serially as required by the project verification workflow. Keep a `next dev` server stopped during production builds. Use only temporary `DATABASE_PATH` data for browser and performance fixtures.
 
@@ -93,10 +120,10 @@ No new dependencies, database schema or data changes, API response changes, heal
 
 ## Risks and rollback
 
-- Deferred chunks reduce first-load transfer but can add first-open delay or leave an inaccessible transition if loading state is incomplete. Verify both cold and warm opens and preserve modal focus/inert behavior.
+- Deferred chunks reduced first-load transfer but failed the first-open gate, so the imports were restored to the initial client graph.
 - Intrinsic-size estimates can shift long content as it becomes visible. Measure row/card sizes and check visual stability while scrolling at desktop and mobile widths.
 - Native offscreen rendering may interact with Framer Motion layout measurement and the semantic table. Revert the affected CSS target if row geometry, sorting, focus, accessibility, or reordering changes.
-- Both phases are independent. Revert a phase that does not produce a repeatable user-visible gain; no data rollback or migration is needed.
+- The measured phases are independent. Revert any future optimization that fails its user-visible performance or interaction gate; no data rollback or migration is needed.
 
 ## Out of scope
 

@@ -116,6 +116,48 @@ checks. Docker discovery tests also verify container inspection limits, cancella
 caps, and partial-state warnings.
 The performance smoke suite does not use `networkidle` because dashboard polling remains active.
 
+## Performance benchmarks
+
+The one-off performance comparison used production builds assembled in the same standalone layout
+as the Docker image and isolated fixtures containing 256 apps and 256 process rows. Chromium runs
+repeated the same panel-open and wheel-scroll paths at desktop and phone sizes, plus an idle control.
+Report medians and ranges; do not turn machine-specific durations into CI thresholds or infer FPS
+from the preview's variable frame clock.
+
+The modal split was rejected. It reduced `/` First Load JS from 169 KB to 161 KB and initial JavaScript
+transfer from 173,249 to 164,904 bytes, but FCP and time to the first tile showed no clear gain. With
+pointer/focus preloading complete before activation, five-run median click-to-content times for all
+256 rows were slower than baseline:
+
+| Screen | Static baseline | Split after preload |
+| --- | ---: | ---: |
+| Management | 412 ms | 692 ms |
+| Processor | 269 ms | 530 ms |
+| Memory | 258 ms | 542 ms |
+| Storage | 252 ms | 380 ms |
+
+The split and preloading hooks were removed. The final build is 169 KB First Load JS with 173,058
+bytes of initial JavaScript transfer, effectively unchanged from the baseline. FCP and first-tile
+timings remained within measurement variance. The viewer fixture had no usable iframe URL, so its
+timing covers the viewer title and toolbar only.
+
+After restoring static imports and removing tile entrance motion, five-run panel-open medians were
+353 ms for management, 254 ms for Processor, 260 ms for Memory, and 194 ms for Storage; the
+split-free static baseline measured 364 ms, 273 ms, 255 ms, and 209 ms. The run ranges overlap, so
+these small, mixed differences are not treated as a screen-open win.
+
+The retained scrolling change removes only the per-tile entrance animation; layout, reorder, and exit
+behavior remain. With 256 synthetic tiles, three-run desktop medians fell from two scroll-associated
+long tasks / 108 ms total to one / 57 ms; a second after run measured one / 57 ms. On phone-sized
+viewports and with 24 tiles, the median long-task count was zero before and after. Scroll height and
+row counts stayed stable. Removing settings-row entrance/layout animation did not help: 256-row
+desktop open time was 678 ms before and 685 ms after, and scroll long tasks did not improve, so that
+trial was reverted.
+
+All three `content-visibility` trials were removed for lack of repeatable wins. Settings rows showed
+no scroll improvement, and the 256-row process table had no scroll long tasks before or after. API,
+overview, and seven-day history reads were already fast and were not changed.
+
 The supported deployment smoke check is documented in [docs/release-smoke.md](release-smoke.md). It
 must run with a unique throwaway Compose project and volume, never the production project, volume,
 or `DATABASE_PATH`.

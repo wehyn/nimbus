@@ -65,6 +65,12 @@ unchanged.
 Health polling pauses while the document is hidden and performs one refresh when the page becomes
 visible again; overview polling retains its five-second cadence.
 
+Application management and system-detail panels remain in the launcher bundle. A production split
+trial saved about 8 KB on first load but made first opens slower even after pointer/focus preloading,
+so it was reverted. The grid keeps its layout and reorder animations but skips per-tile entrance
+motion. While a modal is open, its full-screen backdrop intercepts pointer input and its `aria-modal`
+dialog traps keyboard focus. Focus returns to the opener after the exit animation.
+
 The overview endpoint derives uptime, CPU, memory, and Nimbus storage from the filesystem containing
 `DATABASE_PATH`. Hardware telemetry uses local sysfs data and can fall back to an optional hardware
 agent configured through `HARDWARE_AGENT_URL`. The agent measures traffic counters for the host's

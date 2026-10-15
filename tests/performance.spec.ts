@@ -34,8 +34,17 @@ const fixtureOverview = {
   updatedAt: "2026-09-02T12:00:00.000Z",
 };
 
-async function installFixtures(page: import("@playwright/test").Page) {
-  await page.route("**/api/apps", (route) => route.fulfill({ json: { apps: [fixtureApp], docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } }));
+function makeFixtureApps(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    ...fixtureApp,
+    id: "service-" + (index + 1),
+    name: "Service " + (index + 1),
+    sortOrder: index,
+  }));
+}
+
+async function installFixtures(page: import("@playwright/test").Page, apps = [fixtureApp]) {
+  await page.route("**/api/apps", (route) => route.fulfill({ json: { apps, docker: { available: false, status: "unavailable", warnings: [], updatedAt: null } } }));
   await page.route("**/api/activity", (route) => route.fulfill({ json: { activities: [] } }));
   await page.route("**/api/overview", (route) => route.fulfill({ json: fixtureOverview }));
   await page.route("**/api/health**", (route) => route.fulfill({ json: { status: "online", latency: 20, statusCode: 200 } }));
@@ -74,6 +83,109 @@ async function installFixtures(page: import("@playwright/test").Page) {
 }
 
 test.describe("performance smoke", () => {
+  for (const count of [24, 256]) {
+    test("keeps every launcher tile accessible while scrolling " + count + " apps", async ({ page }) => {
+      await installFixtures(page, makeFixtureApps(count));
+      await page.goto("/");
+      const grid = page.locator(".launcher-grid");
+      const links = grid.getByRole("link");
+      const lastTile = grid.getByRole("link", { name: "Service " + count });
+      await expect(links).toHaveCount(count);
+      await expect(lastTile).toBeAttached();
+      const scrollHeight = await grid.evaluate((element) => element.scrollHeight);
+      await lastTile.scrollIntoViewIfNeeded();
+      await expect(lastTile).toBeVisible();
+      await expect(grid).toHaveJSProperty("scrollHeight", scrollHeight);
+    });
+  }
+
+  for (const count of [24, 256]) {
+    test("keeps every settings row accessible while scrolling " + count + " apps", async ({ page }) => {
+      await installFixtures(page, makeFixtureApps(count));
+      await page.goto("/");
+      const trigger = page.getByRole("button", { name: "Application management" });
+      await trigger.click();
+      const dialog = page.getByRole("dialog", { name: "Application management" });
+      const rows = dialog.locator(".settings-app");
+      const lastEdit = dialog.getByRole("button", { name: "Edit Service " + count });
+      await expect(rows).toHaveCount(count);
+      await expect(lastEdit).toBeAttached();
+      const scrollHeight = await dialog.evaluate((element) => element.scrollHeight);
+      await lastEdit.scrollIntoViewIfNeeded();
+      await expect(lastEdit).toBeVisible();
+      await expect(dialog).toHaveJSProperty("scrollHeight", scrollHeight);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+    });
+  }
+
+  test("keeps all process rows accessible while scrolling", async ({ page }) => {
+    const processes = Array.from({ length: 256 }, (_, index) => ({
+      pid: 1000 + index,
+      name: "benchmark-process-" + String(index + 1).padStart(3, "0"),
+      command: "/usr/bin/benchmark --worker " + (index + 1),
+      user: "fixture",
+      rssBytes: (index + 1) * 1_048_576,
+      memoryPercent: ((index + 1) % 100) / 2,
+      cpuPercent: index % 100,
+    }));
+    await installFixtures(page);
+    await page.unroute("**/api/processor/processes");
+    await page.unroute("**/api/memory/processes");
+    await page.route("**/api/processor/processes", (route) => route.fulfill({ json: {
+      cpuPercent: 22.5,
+      cpuCores: 8,
+      loadAverage: { one: 0.2, five: 0.3, fifteen: 0.4 },
+      processes,
+      totalCount: 256,
+      returnedCount: 256,
+      unreadableCount: 0,
+      policyOmittedCount: 0,
+      policyOmittedReason: null,
+      sampling: false,
+      partial: false,
+      omittedCount: 0,
+      warnings: [],
+      updatedAt: "2026-09-02T12:00:00.000Z",
+    } }));
+    await page.route("**/api/memory/processes", (route) => route.fulfill({ json: {
+      totalBytes: 16 * 1024 ** 3,
+      usedBytes: 8 * 1024 ** 3,
+      availableBytes: 8 * 1024 ** 3,
+      usedPercent: 50,
+      processes: processes.map(({ cpuPercent, ...process }) => process),
+      totalCount: 256,
+      returnedCount: 256,
+      unreadableCount: 0,
+      policyOmittedCount: 0,
+      policyOmittedReason: null,
+      partial: false,
+      omittedCount: 0,
+      warnings: [],
+      updatedAt: "2026-09-02T12:00:00.000Z",
+    } }));
+    await page.goto("/");
+
+    for (const detail of [
+      { trigger: "View cpu details", title: "Processor" },
+      { trigger: "View memory details", title: "Memory" },
+    ]) {
+      const trigger = page.getByRole("button", { name: detail.trigger });
+      await trigger.click();
+      const dialog = page.getByRole("dialog", { name: detail.title });
+      const table = dialog.getByRole("table");
+      const rows = table.getByRole("row", { name: /benchmark-process-/ });
+      await expect(dialog.locator(".count-pill")).toHaveText("256 / 256");
+      await expect(rows).toHaveCount(256);
+      const scrollHeight = await table.evaluate((element) => element.scrollHeight);
+      await rows.last().scrollIntoViewIfNeeded();
+      await expect(rows.last()).toBeVisible();
+      await expect(table).toHaveJSProperty("scrollHeight", scrollHeight);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+    }
+  });
+
 test("isolates application renders from clock and overview updates", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-10-09T12:00:45.000Z") });
     let overviewRequests = 0;
@@ -92,7 +204,11 @@ test("isolates application renders from clock and overview updates", async ({ pa
     await page.goto("/");
     await expect(page.getByRole("region", { name: "Applications" }).getByRole("link", { name: "Demo service" })).toBeVisible();
     await page.getByRole("button", { name: "Application management" }).click();
-    await expect(page.getByRole("dialog", { name: "Application management" })).toBeVisible();
+    const settingsDialog = page.getByRole("dialog", { name: "Application management" });
+    await expect(settingsDialog).toBeVisible();
+    await expect(settingsDialog.locator(".settings-app")).toHaveCount(1);
+    await expect(settingsDialog.locator(".settings-app").first()).toHaveCSS("opacity", "1");
+    await expect(settingsDialog).toHaveAttribute("aria-modal", "true");
 
     const readCalls = async () => {
       const { result } = await cdp.send("Profiler.takePreciseCoverage");

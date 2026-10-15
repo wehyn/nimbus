@@ -18,11 +18,10 @@ type SystemOverviewProps = {
   onOpenSettings: () => void;
   onReorderApps: (sourceId: string, targetId: string) => Promise<boolean>;
   reorderingApps: boolean;
-  onModalOpenChange: (open: boolean) => void;
   refreshOverviewRef: MutableRefObject<(() => Promise<void>) | null>;
 };
 
-function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onReorderApps, reorderingApps, onModalOpenChange, refreshOverviewRef }: SystemOverviewProps) {
+function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpen, onRefreshHealth, onOpenSettings, onReorderApps, reorderingApps, refreshOverviewRef }: SystemOverviewProps) {
   const [overview, setOverview] = useState<ServerOverview | null>(null);
   const [overviewRefreshing, setOverviewRefreshing] = useState(true);
   const [overviewError, setOverviewError] = useState("");
@@ -69,17 +68,6 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
     };
   }, [refreshOverview]);
 
-  useEffect(() => {
-    onModalOpenChange(settingsOpen || systemDetails !== null);
-  }, [onModalOpenChange, settingsOpen, systemDetails]);
-
-  useEffect(() => {
-    if (systemDetails) return;
-    const trigger = detailsTriggerRef.current;
-    if (trigger?.isConnected) trigger.focus();
-    detailsTriggerRef.current = null;
-  }, [systemDetails]);
-
   const openSystemDetails = useCallback((kind: SystemDetailKind) => {
     if (settingsOpen) return;
     const activeElement = document.activeElement;
@@ -87,6 +75,11 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
     setSystemDetails(kind);
   }, [settingsOpen]);
   const closeSystemDetails = useCallback(() => setSystemDetails(null), []);
+  const restoreDetailsFocus = useCallback(() => {
+    const trigger = detailsTriggerRef.current;
+    detailsTriggerRef.current = null;
+    window.setTimeout(() => trigger?.isConnected && trigger.focus(), 0);
+  }, []);
   const cpuValue = overview ? formatPercent(overview.cpu) : "—";
   const memoryValue = overview ? formatPercent(overview.memory) : "—";
   const storageValue = overview ? formatPercent(overview.storage) : "—";
@@ -133,7 +126,7 @@ function SystemOverviewComponent({ apps, children, healthRefreshing, settingsOpe
         {children}
       </section>
       <LauncherDock apps={apps} onOpenSettings={onOpenSettings} onReorderApps={onReorderApps} reorderingApps={reorderingApps} />
-      <AnimatePresence initial={false}>{systemDetails && <SystemDetailsModal key={systemDetails} kind={systemDetails} overview={systemDetails === "storage" ? overview : null} overviewError={systemDetails === "storage" ? overviewError : ""} onRefreshOverview={systemDetails === "storage" ? refreshOverview : undefined} onClose={closeSystemDetails} />}</AnimatePresence>
+      <AnimatePresence initial={false} onExitComplete={restoreDetailsFocus}>{systemDetails && <SystemDetailsModal kind={systemDetails} overview={systemDetails === "storage" ? overview : null} overviewError={systemDetails === "storage" ? overviewError : ""} onRefreshOverview={systemDetails === "storage" ? refreshOverview : undefined} onClose={closeSystemDetails} />}</AnimatePresence>
     </main>
   </>;
 }
