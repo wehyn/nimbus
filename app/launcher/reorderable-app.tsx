@@ -84,7 +84,7 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     sourceBoundsRef.current = null;
     if (sourceBounds && x >= sourceBounds.left && x <= sourceBounds.right && y >= sourceBounds.top && y <= sourceBounds.bottom) return;
 
-    const hitStack = document.elementsFromPoint(x, y);
+    const hitStack = document.elementsFromPoint(x, y).filter((element) => !draggedElement?.contains(element));
     const dropSurface = hitStack.map((element) => element.closest(".launcher-dock, .launcher-grid")).find(Boolean);
     const target = hitStack.find((element) => {
       const targetElement = element.closest<HTMLElement>("[data-reorder-id]");

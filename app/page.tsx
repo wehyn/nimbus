@@ -21,7 +21,6 @@ export default function Home() {
   const [appsLoading, setAppsLoading] = useState(true);
   const [appsError, setAppsError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [systemDetailsOpen, setSystemDetailsOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedApp | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,12 +64,11 @@ export default function Home() {
     setEditing(null);
   }, []);
 
-  useEffect(() => {
-    if (settingsOpen) return;
+  const restoreSettingsFocus = useCallback(() => {
     const trigger = settingsTriggerRef.current;
-    if (trigger?.isConnected) trigger.focus();
     settingsTriggerRef.current = null;
-  }, [settingsOpen]);
+    window.setTimeout(() => trigger?.isConnected && trigger.focus(), 0);
+  }, []);
 
   useEffect(() => () => {
     if (savedNoticeTimeoutRef.current !== null) window.clearTimeout(savedNoticeTimeoutRef.current);
@@ -250,15 +248,6 @@ export default function Home() {
     };
   }, [refreshHealth, appsLoading, apps.map((app) => `${app.id}:${app.healthUrl || app.url}:${app.casaosScheme || ""}:${app.casaosHostname || ""}:${app.casaosPortMap || ""}:${app.casaosIndex || ""}:${app.allowInsecureTls ? "insecure" : "strict"}`).join("|")]);
 
-  const modalOpen = settingsOpen || systemDetailsOpen;
-  useEffect(() => {
-    const appRoot = document.querySelector("body > div");
-    if (!appRoot) return;
-    if (modalOpen) appRoot.setAttribute("inert", "");
-    else appRoot.removeAttribute("inert");
-    return () => appRoot.removeAttribute("inert");
-  }, [modalOpen]);
-
   async function reorderApps(sourceId: string, targetId: string): Promise<boolean> {
     if (reorderingAppsRef.current) return false;
     const currentApps = appsRef.current;
@@ -357,10 +346,9 @@ export default function Home() {
       onOpenSettings={openSettingsPanel}
       onReorderApps={reorderApps}
       reorderingApps={reorderingApps}
-      onModalOpenChange={setSystemDetailsOpen}
       refreshOverviewRef={refreshOverviewRef}
     />
-    <AnimatePresence initial={false}>{settingsOpen && <motion.div key="application-modal" className="panel-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition} onClick={closeSettings}><SettingsPanel apps={apps} activities={activities} editing={editing} deletingId={deletingId} saving={saving} mutationError={mutationError} onRefreshActivity={refreshActivity} onClose={closeSettings} onEdit={setEditing} onSave={saveApp} onDelete={deleteApp} /></motion.div>}</AnimatePresence>
+    <AnimatePresence initial={false} onExitComplete={restoreSettingsFocus}>{settingsOpen && <motion.div key="application-modal" className="panel-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={motionTransition} onClick={closeSettings}><SettingsPanel apps={apps} activities={activities} editing={editing} deletingId={deletingId} saving={saving} mutationError={mutationError} onRefreshActivity={refreshActivity} onClose={closeSettings} onEdit={setEditing} onSave={saveApp} onDelete={deleteApp} /></motion.div>}</AnimatePresence>
     {healthError && <div className="toast toast-error" role="status" aria-live="polite"><TriangleAlert size={16} aria-hidden="true" />{healthError}</div>}
     {isOnline === false && <OfflineBanner onRetry={() => { void loadApps(); void refreshOverviewRef.current?.(); void refreshHealth(); }} />}
     {savedNotice && <div className="toast" role="status"><Check size={16} aria-hidden="true" />Changes saved</div>}

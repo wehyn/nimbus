@@ -48,7 +48,6 @@ function SystemDetailsModalComponent({ kind, onClose, overview = null, overviewE
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const requestVersionRef = useRef(0);
-  const restoreFocusTimeoutRef = useRef<number | null>(null);
   const previousBodyOverflowRef = useRef("");
   const title = kind === "processor" ? "Processor" : kind === "memory" ? "Memory" : "Storage";
   const isStorage = kind === "storage";
@@ -97,10 +96,7 @@ function SystemDetailsModalComponent({ kind, onClose, overview = null, overviewE
     }
   }, [kind, title, onRefreshOverview]);
 
-  const previousActiveElementRef = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
-    previousActiveElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     void refresh();
     const interval = kind === "storage" ? null : window.setInterval(() => void refresh(), 5_000);
     previousBodyOverflowRef.current = document.body.style.overflow;
@@ -111,24 +107,9 @@ function SystemDetailsModalComponent({ kind, onClose, overview = null, overviewE
       requestRef.current?.abort();
       requestVersionRef.current += 1;
       requestRef.current = null;
-      if (restoreFocusTimeoutRef.current !== null) {
-        window.clearTimeout(restoreFocusTimeoutRef.current);
-        restoreFocusTimeoutRef.current = null;
-      }
       document.body.style.overflow = previousBodyOverflowRef.current;
-      const previousTrigger = previousActiveElementRef.current;
-      const restoreFocusVersion = requestVersionRef.current;
-      restoreFocusTimeoutRef.current = window.setTimeout(() => {
-        restoreFocusTimeoutRef.current = null;
-        if (restoreFocusVersion !== requestVersionRef.current) return;
-        previousTrigger?.isConnected && previousTrigger.focus();
-      }, 220);
     };
   }, [refresh, kind]);
-
-  useEffect(() => () => {
-    if (restoreFocusTimeoutRef.current !== null) window.clearTimeout(restoreFocusTimeoutRef.current);
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
