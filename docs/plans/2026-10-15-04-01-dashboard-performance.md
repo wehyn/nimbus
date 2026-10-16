@@ -113,7 +113,7 @@ Trial `content-visibility: auto` on `.launcher-tile-wrap` with an intrinsic bloc
 
 - [x] **Step 4: Run desktop/mobile structure and interaction checks**
 
-Run the new large-grid test plus existing dashboard tests matching "reorders applications by dragging", "starts touch reordering", "keeps focus and announces", and "labels each reorder handle".
+Run the new large-grid test plus existing dashboard tests matching "reorders applications by dragging", "starts touch reordering", "keeps focus and announces", and "labels keyboard reorder controls".
 
 Expected: all 24/256 tiles stay present and accessible; mouse, touch, and keyboard reorder behavior remains unchanged.
 
