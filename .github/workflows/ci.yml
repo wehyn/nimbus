@@ -93,3 +93,27 @@ jobs:
         run: npm ci
       - name: Build application
         run: npm run build
+
+  docker-builds:
+    name: Docker build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: nimbus
+            dockerfile: Dockerfile
+          - image: metrics-agent
+            dockerfile: Dockerfile.metrics-agent
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
