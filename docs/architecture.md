@@ -33,7 +33,8 @@ legacy duplicate positions unchanged when an app name is edited. Application cha
 `/api/apps`, whose handlers delegate to the singleton `DatabaseSync` connection in `lib/db.ts`. The
 database creates its schema and seeds `lib/seed.ts` only when the `apps` table is empty.
 
-Visible apps can be reordered from the grid or dock using the shared `sort_order` sequence. The UI
+Visible apps can be reordered from the grid or dock using the shared `sort_order` sequence. Touch
+drags begin after a 350 ms hold on an app icon; vertical swipes still scroll the launcher. The UI
 keeps hidden apps in their existing positions, while `/api/apps` `PATCH` receives the expected ID
 and visible ID sequences plus the complete new ID order. One SQLite transaction checks those
 snapshots and keeps hidden slots fixed before writing, so stale tabs receive a conflict instead of

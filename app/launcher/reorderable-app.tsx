@@ -22,10 +22,20 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
   const sourceBoundsRef = useRef<DOMRect | null>(null);
   const didDragRef = useRef(false);
   const longPressRef = useRef<{ timeout: number; pointerId: number; x: number; y: number } | null>(null);
+  const touchPointerIdRef = useRef<number | null>(null);
+  const touchDragArmedRef = useRef(false);
   const [announcement, setAnnouncement] = useState("");
 
-  useEffect(() => () => {
-    if (longPressRef.current) window.clearTimeout(longPressRef.current.timeout);
+  useEffect(() => {
+    const element = reorderableRef.current;
+    const preventTouchScrollDuringDrag = (event: TouchEvent) => {
+      if (touchDragArmedRef.current) event.preventDefault();
+    };
+    element?.addEventListener("touchmove", preventTouchScrollDuringDrag, { passive: false });
+    return () => {
+      element?.removeEventListener("touchmove", preventTouchScrollDuringDrag);
+      if (longPressRef.current) window.clearTimeout(longPressRef.current.timeout);
+    };
   }, []);
 
   function cancelLongPress() {
@@ -35,8 +45,15 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
     didDragRef.current = false;
+    if (event.pointerType === "touch") {
+      if (!(event.target instanceof Element && event.target.closest(".launcher-iconwrap, .dock-icon"))) return;
+      touchPointerIdRef.current = event.pointerId;
+      touchDragArmedRef.current = false;
+    } else {
+      touchPointerIdRef.current = null;
+      touchDragArmedRef.current = false;
+    }
     if (disabled || event.button !== 0) return;
-    if (event.pointerType === "touch" && !(event.target instanceof Element && event.target.closest(".launcher-iconwrap, .dock-icon"))) return;
     sourceBoundsRef.current = reorderableRef.current?.getBoundingClientRect() ?? null;
     if (event.pointerType !== "touch") {
       dragControls.start(event);
@@ -47,9 +64,22 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     const pointerEvent = event.nativeEvent;
     const timeout = window.setTimeout(() => {
       longPressRef.current = null;
+      touchDragArmedRef.current = true;
       dragControls.start(pointerEvent);
     }, 350);
     longPressRef.current = { timeout, pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  }
+
+  function endPointer(event: ReactPointerEvent<HTMLDivElement>) {
+    cancelLongPress();
+    if (touchPointerIdRef.current === event.pointerId) {
+      touchPointerIdRef.current = null;
+      touchDragArmedRef.current = false;
+    }
+  }
+
+  function suppressTouchContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
+    if (touchPointerIdRef.current !== null) event.preventDefault();
   }
 
   function trackLongPress(event: ReactPointerEvent<HTMLDivElement>) {
@@ -124,8 +154,9 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     dragListener={false}
     onPointerDown={startDrag}
     onPointerMove={trackLongPress}
-    onPointerUp={cancelLongPress}
-    onPointerCancel={cancelLongPress}
+    onPointerUp={endPointer}
+    onPointerCancel={endPointer}
+    onContextMenu={suppressTouchContextMenu}
     dragMomentum={false}
     dragSnapToOrigin
     dragElastic={0.12}

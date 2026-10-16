@@ -141,6 +141,14 @@ async function dragBetween(page: import("@playwright/test").Page, source: import
   await page.mouse.up();
 }
 
+async function enableMobileTouch(page: import("@playwright/test").Page) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const session = await page.context().newCDPSession(page);
+  await session.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  return session;
+}
+
 test.describe("dashboard browser regressions", () => {
   test("routes grid and dock app links to the encoded in-app viewer", async ({ page }) => {
     const fixtureApp = { ...apps[0], id: "other/a b", name: "Reserved ID service" };
@@ -383,27 +391,25 @@ test.describe("dashboard browser regressions", () => {
     const fixtureState = await installReorderFixtures(page, [
       { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
       { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+      { ...apps[0], id: "gamma", name: "Gamma", sortOrder: 2 },
     ]);
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    const session = await page.context().newCDPSession(page);
-    await session.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    const session = await enableMobileTouch(page);
     await page.goto("/");
     const alphaIcon = page.locator('.launcher-grid [data-reorder-id="alpha"] .launcher-iconwrap');
-    const betaIcon = page.locator('.launcher-grid [data-reorder-id="beta"] .launcher-iconwrap');
+    const gammaIcon = page.locator('.launcher-grid [data-reorder-id="gamma"] .launcher-iconwrap');
     const shortTouchSource = await alphaIcon.boundingBox();
     expect(shortTouchSource).not.toBeNull();
 
     await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: shortTouchSource!.x + shortTouchSource!.width / 2, y: shortTouchSource!.y + shortTouchSource!.height / 2, id: 1 }] });
     await page.waitForTimeout(100);
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    expect(fixtureState.apps.map((app) => app.id)).toEqual(["alpha", "beta"]);
+    expect(fixtureState.apps.map((app) => app.id)).toEqual(["alpha", "beta", "gamma"]);
     await expect(page).toHaveURL(/\/apps\/app-0061006c007000680061$/);
     await page.goto("/");
 
     const longPressSource = await alphaIcon.boundingBox();
-    const longPressTarget = await betaIcon.boundingBox();
+    const longPressTarget = await gammaIcon.boundingBox();
     expect(longPressSource).not.toBeNull();
     expect(longPressTarget).not.toBeNull();
 
@@ -412,7 +418,64 @@ test.describe("dashboard browser regressions", () => {
     await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: longPressTarget!.x + longPressTarget!.width / 2, y: longPressTarget!.y + longPressTarget!.height / 2, id: 1 }] });
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
-    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
+    await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "gamma", "alpha"]);
+  });
+
+  test("scrolls the mobile launcher when a vertical swipe starts on an app icon", async ({ page }) => {
+    const fixtureState = await installReorderFixtures(page, Array.from({ length: 10 }, (_, index) => ({
+      ...apps[0],
+      id: `app-${index}`,
+      name: `App ${index + 1}`,
+      sortOrder: index,
+    })));
+    const session = await enableMobileTouch(page);
+
+    await page.goto("/");
+    const icon = page.locator('.launcher-grid [data-reorder-id="app-4"] .launcher-iconwrap');
+    const bounds = await icon.boundingBox();
+    expect(bounds).not.toBeNull();
+    const x = bounds!.x + bounds!.width / 2;
+    const startY = bounds!.y + bounds!.height / 2;
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: startY, id: 1 }] });
+    for (const offset of [16, 40, 72, 108, 144]) {
+      await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: startY - offset, id: 1 }] });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBefore);
+    expect([...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(Array.from({ length: 10 }, (_, index) => `app-${index}`));
+  });
+
+  test("suppresses app link context menus during touch and allows desktop context menus", async ({ page }) => {
+    await installReorderFixtures(page, [
+      { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
+      { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
+    ]);
+    const session = await enableMobileTouch(page);
+
+    await page.goto("/");
+    const icon = page.locator('.launcher-grid [data-reorder-id="alpha"] .launcher-iconwrap');
+    const bounds = await icon.boundingBox();
+    expect(bounds).not.toBeNull();
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: bounds!.x + bounds!.width / 2, y: bounds!.y + bounds!.height / 2, id: 1 }] });
+    await page.waitForTimeout(400);
+
+    const touchContextMenuPrevented = await icon.evaluate((element) => {
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const desktopContextMenuPrevented = await icon.evaluate((element) => {
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+
+    expect(touchContextMenuPrevented).toBe(true);
+    expect(desktopContextMenuPrevented).toBe(false);
   });
 
   test("opens system details from every KPI card surface on desktop and mobile", async ({ page }) => {

@@ -44,7 +44,7 @@ h1, h2, h3, p { margin: 0; }
 .sync-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
 
 /* Launcher */
-.launcher { min-height: 100dvh; position: relative; isolation: isolate; overflow-x: hidden; background: #242728; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+.launcher { min-height: 100dvh; position: relative; isolation: isolate; overflow-x: hidden; background: #242728; -webkit-tap-highlight-color: transparent; overscroll-behavior-x: none; }
 .launcher::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; background: linear-gradient(180deg, rgba(12, 17, 25, .16), rgba(15, 18, 25, .05) 40%, rgba(8, 10, 14, .14) 72%, rgba(8, 10, 14, .36)), url("/launcher-wallpaper.png") center 50% / cover no-repeat; }
 .launcher::after { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .1; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.075'/%3E%3C/svg%3E"); }
 .launcher ::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); }
@@ -75,7 +75,7 @@ h1, h2, h3, p { margin: 0; }
 .app-reorderable { position: relative; min-width: 0; user-select: none; -webkit-user-select: none; }
 .app-reorderable-grid { width: 100%; }
 .app-reorderable-dock { width: 44px; height: 44px; flex: 0 0 auto; }
-.app-reorderable-grid .launcher-iconwrap, .app-reorderable-dock > .dock-icon { touch-action: none; }
+.app-reorderable-grid .launcher-iconwrap, .app-reorderable-dock > .dock-icon { touch-action: pan-y; -webkit-touch-callout: none; }
 .app-reorderable:focus-within > .launcher-tile, .app-reorderable:focus-within > .dock-icon { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 4px; }
 .launcher-tile { width: 100%; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 0; border: 0; border-radius: 18px; background: transparent; box-shadow: none; touch-action: manipulation; user-select: none; -webkit-user-select: none; text-align: center; transition: transform 150ms ease-out; }
 .launcher-tile:active { transform: scale(.96); }
