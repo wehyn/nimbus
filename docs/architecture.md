@@ -109,7 +109,7 @@ Metric history charts are mounted only inside processor and memory detail modals
 - `app/launcher/system-overview.tsx`: overview polling/readings and system-detail ownership.
 - `app/launcher/launcher-clock.tsx`: local clock state and timer.
 - `app/launcher/application-grid.tsx`: app filtering, loading/error states, and launcher tiles.
-- `app/launcher/reorderable-app.tsx`: shared drag handle, touch long-press, and keyboard reordering.
+- `app/launcher/reorderable-app.tsx`: app-surface dragging, touch long-press, and keyboard reordering.
 - `app/launcher/`: settings, icons, activity, and display helpers.
 - `app/system-details-modal.tsx`: sortable CPU and memory process views plus storage details.
 - `app/api/apps/`: application CRUD and ordering API.

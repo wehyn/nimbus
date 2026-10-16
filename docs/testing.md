@@ -74,8 +74,8 @@ including:
 - viewer layout and no horizontal overflow at desktop and phone widths
 - application add, edit, visibility, and delete flows
 - saved app order survives stale app edits and older in-flight reads; stale order and visibility snapshots are rejected
-- grid and dock pointer dragging in both directions, no move on a short in-place drag, touch reordering after a long press, and focus when a dock app moves into the grid; a short touch does not reorder
-- reorder buttons identify their application to screen readers
+- grid and dock app-icon dragging in both directions, no move on a short in-place drag, touch reordering after a long press, and focus when a dock app moves into the grid; a short touch does not reorder
+- keyboard reorder controls identify their application to screen readers
 - settings modal focus, Escape, and focus restoration
 - Processor, Memory, and Storage cards open from the full card surface at desktop and phone widths and restore focus
 - processor and memory detail dialogs

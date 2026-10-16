@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { motion, useDragControls } from "framer-motion";
-import { GripVertical } from "lucide-react";
 
 type ReorderableAppProps = {
   appId: string;
@@ -21,6 +20,7 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
   const descriptionId = useId();
   const reorderableRef = useRef<HTMLDivElement>(null);
   const sourceBoundsRef = useRef<DOMRect | null>(null);
+  const didDragRef = useRef(false);
   const longPressRef = useRef<{ timeout: number; pointerId: number; x: number; y: number } | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
@@ -33,8 +33,10 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     longPressRef.current = null;
   }
 
-  function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+  function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    didDragRef.current = false;
     if (disabled || event.button !== 0) return;
+    if (event.pointerType === "touch" && !(event.target instanceof Element && event.target.closest(".launcher-iconwrap, .dock-icon"))) return;
     sourceBoundsRef.current = reorderableRef.current?.getBoundingClientRect() ?? null;
     if (event.pointerType !== "touch") {
       dragControls.start(event);
@@ -50,7 +52,7 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     longPressRef.current = { timeout, pointerId: event.pointerId, x: event.clientX, y: event.clientY };
   }
 
-  function trackLongPress(event: ReactPointerEvent<HTMLButtonElement>) {
+  function trackLongPress(event: ReactPointerEvent<HTMLDivElement>) {
     const press = longPressRef.current;
     if (!press || press.pointerId !== event.pointerId) return;
     if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) cancelLongPress();
@@ -77,6 +79,7 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
   }
 
   async function finishDrag(_event: MouseEvent | TouchEvent | PointerEvent, info: { point: { x: number; y: number } }) {
+    window.setTimeout(() => { didDragRef.current = false; }, 0);
     const draggedElement = reorderableRef.current;
     const x = info.point.x - window.scrollX;
     const y = info.point.y - window.scrollY;
@@ -105,6 +108,13 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     }
   }
 
+  function cancelClickAfterDrag(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!didDragRef.current) return;
+    didDragRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   return <motion.div
     ref={reorderableRef}
     className={`app-reorderable app-reorderable-${surface}`}
@@ -112,29 +122,29 @@ export function ReorderableApp({ appId, appName, orderedIds, surface, disabled, 
     drag
     dragControls={dragControls}
     dragListener={false}
+    onPointerDown={startDrag}
+    onPointerMove={trackLongPress}
+    onPointerUp={cancelLongPress}
+    onPointerCancel={cancelLongPress}
     dragMomentum={false}
     dragSnapToOrigin
     dragElastic={0.12}
     layout
     whileDrag={{ scale: 1.04, zIndex: 20 }}
+    onDragStart={() => { didDragRef.current = true; }}
+    onClickCapture={cancelClickAfterDrag}
     onDragEnd={finishDrag}
   >
     {children}
     <button
       type="button"
-      className="app-reorder-handle"
+      className="app-reorder-handle visually-hidden"
       aria-label={`Reorder application ${appName}`}
       aria-describedby={descriptionId}
       aria-keyshortcuts="ArrowUp ArrowDown"
-      title="Drag to reorder; press and hold on touch screens"
       aria-disabled={disabled}
-      onPointerDown={startDrag}
-      onPointerMove={trackLongPress}
-      onPointerUp={cancelLongPress}
-      onPointerCancel={cancelLongPress}
-      onContextMenu={(event) => event.preventDefault()}
       onKeyDown={moveWithKeyboard}
-    ><GripVertical size={15} aria-hidden="true" /></button>
+    />
     <span id={descriptionId} className="visually-hidden">{appName}: use the arrow keys to move. Press and hold to drag on touch screens.</span>
     <span className="visually-hidden" role="status" aria-live="polite">{announcement}</span>
   </motion.div>;

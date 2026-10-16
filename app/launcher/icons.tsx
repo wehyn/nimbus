@@ -30,6 +30,6 @@ export function AppIcon({ app, large = false }: { app: ManagedApp; large?: boole
   const iconSource = iconSources[failedSourceCount] || "";
 
   return <div className={`app-icon ${large ? "app-icon-large" : ""}`} data-app-id={app.id}>
-    {iconSource ? <img key={iconSource} src={iconSource} alt="" aria-hidden="true" width={large ? 144 : 40} height={large ? 144 : 40} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailedSourceCount((current) => current + 1)} /> : <Icon size={large ? 27 : 22} strokeWidth={1.8} aria-hidden="true" focusable="false" />}
+    {iconSource ? <img key={iconSource} src={iconSource} alt="" aria-hidden="true" width={large ? 144 : 40} height={large ? 144 : 40} loading="lazy" decoding="async" draggable={false} referrerPolicy="no-referrer" onError={() => setFailedSourceCount((current) => current + 1)} /> : <Icon size={large ? 27 : 22} strokeWidth={1.8} aria-hidden="true" focusable="false" />}
   </div>;
 }

@@ -153,6 +153,11 @@ test.describe("dashboard browser regressions", () => {
       await expect(link).toHaveAttribute("href", "/apps/app-006f0074006800650072002f006100200062");
       await expect(link).not.toHaveAttribute("target");
     }
+    await gridLink.click();
+    await expect(page).toHaveURL(/\/apps\/app-006f0074006800650072002f006100200062$/);
+    await page.goto("/");
+    await dockLink.click();
+    await expect(page).toHaveURL(/\/apps\/app-006f0074006800650072002f006100200062$/);
   });
 
   const orderScenarios = [
@@ -248,9 +253,9 @@ test.describe("dashboard browser regressions", () => {
     ]);
 
     await page.goto("/");
-    const gridSource = page.locator('.launcher-grid [data-reorder-id="alpha"] .app-reorder-handle');
-    const dockTargetHandle = page.locator('.launcher-dock [data-reorder-id="beta"] .app-reorder-handle');
-    await dragBetween(page, gridSource, dockTargetHandle);
+    const gridSource = page.locator('.launcher-grid [data-reorder-id="alpha"] .launcher-iconwrap');
+    const dockTarget = page.locator('.launcher-dock [data-reorder-id="beta"] .dock-icon');
+    await dragBetween(page, gridSource, dockTarget);
 
     await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
     await expect.poll(() => page.locator(".launcher-grid [data-reorder-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-reorder-id")))).toEqual(["beta", "alpha"]);
@@ -267,7 +272,7 @@ test.describe("dashboard browser regressions", () => {
     ]);
 
     await page.goto("/");
-    const handle = page.locator('.launcher-grid [data-reorder-id="beta"] .app-reorder-handle');
+    const handle = page.locator('.launcher-grid [data-reorder-id="beta"] .launcher-iconwrap');
     const tile = page.locator('.launcher-grid [data-reorder-id="beta"]');
     const bounds = await handle.boundingBox();
     expect(bounds).not.toBeNull();
@@ -310,8 +315,8 @@ test.describe("dashboard browser regressions", () => {
       expect(hit).toEqual({ inSurface: true, appId: null });
 
       const source = page.locator(surface === "dock"
-        ? '.launcher-grid [data-reorder-id="app-4"] .app-reorder-handle'
-        : '.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
+        ? '.launcher-grid [data-reorder-id="app-4"] .launcher-iconwrap'
+        : '.launcher-dock [data-reorder-id="app-3"] .dock-icon');
       const sourceBounds = await source.boundingBox();
       expect(sourceBounds).not.toBeNull();
       await page.mouse.move(sourceBounds!.x + sourceBounds!.width / 2, sourceBounds!.y + sourceBounds!.height / 2);
@@ -326,7 +331,7 @@ test.describe("dashboard browser regressions", () => {
     });
   }
 
-  test("labels each reorder handle with its application", async ({ page }) => {
+  test("labels keyboard reorder controls with their applications", async ({ page }) => {
     await installReorderFixtures(page, [
       { ...apps[0], id: "alpha", name: "Alpha", sortOrder: 0 },
       { ...apps[0], id: "beta", name: "Beta", sortOrder: 1 },
@@ -346,10 +351,11 @@ test.describe("dashboard browser regressions", () => {
 
       await page.goto("/");
       const containerSelector = surface === "grid" ? ".launcher-grid" : ".launcher-dock";
+      const itemSelector = surface === "grid" ? ".launcher-iconwrap" : ".dock-icon";
       await dragBetween(
         page,
-        page.locator(`${containerSelector} [data-reorder-id="beta"] .app-reorder-handle`),
-        page.locator(`${containerSelector} [data-reorder-id="alpha"] .app-reorder-handle`),
+        page.locator(`${containerSelector} [data-reorder-id="beta"] ${itemSelector}`),
+        page.locator(`${containerSelector} [data-reorder-id="alpha"] ${itemSelector}`),
       );
 
       await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
@@ -366,9 +372,8 @@ test.describe("dashboard browser regressions", () => {
     })));
 
     await page.goto("/");
-    const dockHandle = page.locator('.launcher-dock [data-reorder-id="app-3"] .app-reorder-handle');
-    await dockHandle.focus();
-    await dragBetween(page, dockHandle, page.locator('.launcher-grid [data-reorder-id="app-4"] .app-reorder-handle'));
+    const dockIcon = page.locator('.launcher-dock [data-reorder-id="app-3"] .dock-icon');
+    await dragBetween(page, dockIcon, page.locator('.launcher-grid [data-reorder-id="app-4"] .launcher-iconwrap'));
 
     await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["app-0", "app-1", "app-2", "app-4", "app-3"]);
     await expect(page.locator('.launcher-grid [data-reorder-id="app-3"] .app-reorder-handle')).toBeFocused();
@@ -385,21 +390,26 @@ test.describe("dashboard browser regressions", () => {
     await session.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     await page.goto("/");
-    const alphaHandle = page.locator('.launcher-grid [data-reorder-id="alpha"] .app-reorder-handle');
-    const betaHandle = page.locator('.launcher-grid [data-reorder-id="beta"] .app-reorder-handle');
-    const source = await alphaHandle.boundingBox();
-    const target = await betaHandle.boundingBox();
-    expect(source).not.toBeNull();
-    expect(target).not.toBeNull();
+    const alphaIcon = page.locator('.launcher-grid [data-reorder-id="alpha"] .launcher-iconwrap');
+    const betaIcon = page.locator('.launcher-grid [data-reorder-id="beta"] .launcher-iconwrap');
+    const shortTouchSource = await alphaIcon.boundingBox();
+    expect(shortTouchSource).not.toBeNull();
 
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: source!.x + source!.width / 2, y: source!.y + source!.height / 2, id: 1 }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: shortTouchSource!.x + shortTouchSource!.width / 2, y: shortTouchSource!.y + shortTouchSource!.height / 2, id: 1 }] });
     await page.waitForTimeout(100);
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     expect(fixtureState.apps.map((app) => app.id)).toEqual(["alpha", "beta"]);
+    await expect(page).toHaveURL(/\/apps\/app-0061006c007000680061$/);
+    await page.goto("/");
 
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: source!.x + source!.width / 2, y: source!.y + source!.height / 2, id: 1 }] });
-    await page.waitForTimeout(400);
-    await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: target!.x + target!.width / 2, y: target!.y + target!.height / 2, id: 1 }] });
+    const longPressSource = await alphaIcon.boundingBox();
+    const longPressTarget = await betaIcon.boundingBox();
+    expect(longPressSource).not.toBeNull();
+    expect(longPressTarget).not.toBeNull();
+
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: longPressSource!.x + longPressSource!.width / 2, y: longPressSource!.y + longPressSource!.height / 2, id: 1 }] });
+    await page.evaluate(() => new Promise<void>((resolve) => window.setTimeout(resolve, 600)));
+    await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: longPressTarget!.x + longPressTarget!.width / 2, y: longPressTarget!.y + longPressTarget!.height / 2, id: 1 }] });
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
     await expect.poll(() => [...fixtureState.apps].sort((left, right) => left.sortOrder - right.sortOrder).map((app) => app.id)).toEqual(["beta", "alpha"]);
