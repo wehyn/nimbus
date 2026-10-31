@@ -199,3 +199,49 @@ test("keeps the viewer toolbar on one row at desktop and mobile widths", async (
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 });
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`keeps an embedded composer visible above the keyboard at ${viewport.width}x${viewport.height}`, async ({ page, request }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(viewport);
+    const appUrl = await getCraftyUrl(request);
+    await page.route(appUrl, (route) => route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><style>body{margin:0}textarea{position:fixed;bottom:12px;height:42px}</style><textarea aria-label="Message"></textarea>',
+    }));
+    await page.goto(`/apps/app-${encodeAppRouteId("crafty-controller")}`);
+    const frame = page.locator('iframe[title="Crafty Controller"]');
+    const composer = page.frameLocator('iframe[title="Crafty Controller"]').getByRole("textbox", { name: "Message" });
+    await composer.focus();
+    const visibleHeight = Math.floor(viewport.height * 0.55);
+    const offsetTop = 24;
+    await page.evaluate(({ visibleHeight, offsetTop }) => {
+      Object.defineProperties(window.visualViewport, {
+        height: { configurable: true, value: visibleHeight },
+        offsetTop: { configurable: true, value: offsetTop },
+      });
+      window.visualViewport?.dispatchEvent(new Event("resize"));
+      window.visualViewport?.dispatchEvent(new Event("scroll"));
+    }, { visibleHeight, offsetTop });
+    await expect.poll(async () => {
+      const bounds = await composer.boundingBox();
+      return bounds ? bounds.y + bounds.height : Infinity;
+    }).toBeLessThanOrEqual(offsetTop + visibleHeight);
+    await expect.poll(async () => (await frame.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(offsetTop);
+    await page.evaluate(() => {
+      const viewport = window.visualViewport;
+      if (!viewport) throw new Error("Visual viewport is unavailable");
+      Reflect.deleteProperty(viewport, "height");
+      Reflect.deleteProperty(viewport, "offsetTop");
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    await expect.poll(async () => {
+      const bounds = await frame.boundingBox();
+      return bounds ? bounds.y + bounds.height : Infinity;
+    }).toBeLessThanOrEqual(viewport.height);
+    await expect.poll(async () => {
+      const bounds = await composer.boundingBox();
+      return bounds ? bounds.y + bounds.height : 0;
+    }).toBeGreaterThan(visibleHeight);
+  });
+}
