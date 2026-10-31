@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { resolveAppLaunchUrl } from "@/lib/app-url";
@@ -12,6 +12,25 @@ type LaunchApp = Pick<ManagedApp, "id" | "name" | "url" | "containerId" | "docke
 export default function AppViewer({ app }: { app: LaunchApp }) {
   const [launchUrl, setLaunchUrl] = useState<string | null>(null);
   const [frameVersion, setFrameVersion] = useState(0);
+  const viewerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const viewer = viewerRef.current;
+    if (!viewport || !viewer) return;
+
+    const updateViewport = () => {
+      viewer.style.setProperty("--app-viewer-height", `${viewport.height}px`);
+      viewer.style.setProperty("--app-viewer-top", `${viewport.offsetTop}px`);
+    };
+    updateViewport();
+    viewport.addEventListener("resize", updateViewport);
+    viewport.addEventListener("scroll", updateViewport);
+    return () => {
+      viewport.removeEventListener("resize", updateViewport);
+      viewport.removeEventListener("scroll", updateViewport);
+    };
+  }, []);
 
   useEffect(() => {
     const resolvedUrl = resolveAppLaunchUrl(app, window.location.hostname);
@@ -19,7 +38,7 @@ export default function AppViewer({ app }: { app: LaunchApp }) {
   }, [app]);
 
   return (
-    <main className="app-viewer">
+    <main ref={viewerRef} className="app-viewer">
       <header className="app-viewer-toolbar">
         <div className="app-viewer-brand">
           <Link className="app-viewer-back" href="/" aria-label="Back to dashboard" title="Back to dashboard">
