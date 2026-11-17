@@ -3,6 +3,14 @@
 Nimbus is a local-first launcher for web applications hosted on a home server. It combines
 service links, health status, activity history, and basic host metrics in one home screen.
 
+## Brand assets
+
+Nimbus uses the sage Nested cloud mark. `app/icon.svg` supplies both the launcher logo
+at `/icon.svg` and browser metadata. The Apple touch icon in
+`app/apple-icon.png` and the three manifest PNG icons in `public/` are raster exports of that
+artwork. Keep these assets synchronized when changing the logo. The maskable icon has a solid
+charcoal background and keeps the cloud inside the central safe area.
+
 ## Runtime flow
 
 ```mermaid

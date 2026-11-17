@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Nimbus">
-  <rect width="64" height="64" rx="16" fill="#0f0f10" />
-  <circle cx="25" cy="32" r="18" fill="#a8cf8d" />
-  <circle cx="39" cy="32" r="18" fill="#9aa6b4" fill-opacity=".86" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Nimbus">
+  <rect width="180" height="180" rx="45" fill="#0f0f10" />
+  <g transform="translate(28 32) scale(1.15)">
+    <path d="M24 82C11 82 4 74 4 63c0-11 8-20 19-21C26 25 38 14 54 14c18 0 32 13 34 31 10 2 16 9 16 19 0 11-8 18-20 18H24Z" fill="#a8cf8d" />
+    <path d="M25 64c0-17 13-30 29-30s29 13 29 30M43 65c0-7 5-12 11-12s11 5 11 12" fill="none" stroke="#0f0f10" stroke-width="7" stroke-linecap="round" />
+  </g>
 </svg>

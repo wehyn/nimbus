@@ -53,7 +53,7 @@ h1, h2, h3, p { margin: 0; }
 .launcher-brand { min-width: 0; gap: 32px; }
 .launcher-brand-name { flex: none; gap: 10px; }
 .launcher-brand-name strong { font-size: 13px; font-weight: 700; letter-spacing: -.25px; }
-.launcher-brand-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 7px; background: linear-gradient(145deg, #c5ddce, #a5b8da); color: #1d2a2a; font-size: 12px; font-weight: 800; }
+.launcher-brand-mark { width: 26px; height: 26px; flex: none; display: block; }
 .launcher-nav { gap: 22px; color: rgba(255, 255, 255, .68); font-size: 12px; }
 .launcher-nav a { transition: color 150ms ease-out; }
 .launcher-actions { flex: none; gap: 13px; }
